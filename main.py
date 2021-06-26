@@ -7,6 +7,8 @@ import os
 import time
 import logging
 import sys
+import pce
+import json
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
@@ -33,7 +35,20 @@ else:
 
 config = data['config']
 
+
+pce = pce.IllumioPCE()
+pce.pce = config['pce']
+pce.pce_api_user = config['pce_api_user']
+pce.pce_api_secret = config['pce_api_secret']
+pce.pce_org = config['pce_org']
+pce.client_init()
+
+r3c = pce.client.get('/api/v2/orgs/1/events')
+print(r3c)
+
+
 # main loop
 logging.info("Entering main poll loop with interval: %s", config['pce_poll_interval'])
 while True:
+    event_response = pce.request('GET', 'events')
     time.sleep(config['pce_poll_interval'])
