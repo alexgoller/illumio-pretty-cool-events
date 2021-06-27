@@ -46,13 +46,23 @@ for watcher in watchers:
 
 ### check plugins
 plugins = load('plugins')
-print(plugins)
 
 for plugin in plugins:
-    try:
-        plugin.output("Test")
-    except:
-        pass
+    print("Plugin name:", plugin.__name__)
+    plugin_functions = dir(plugin)
+
+    print(config['plugin_config'][plugin.__name__])
+
+    if 'config' in plugin_functions:
+        print("Has config function. Calling it!")
+        try:
+            if plugin.__name__ in config['plugin_config']:
+                print("Config section found. Executing!")
+                plugin.config(config['plugin_config'][plugin.__name__])
+            else:
+                print("Plugin has no config set! Not calling config!")
+        except:
+            pass
 
 pce = pce.IllumioPCE()
 pce.pce = config['pce']
