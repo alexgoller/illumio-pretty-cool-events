@@ -49,6 +49,9 @@ plugins = load('plugins')
 
 for plugin in plugins:
     print("Plugin name:", plugin.__name__)
+
+for plugin in plugins:
+    print("Plugin name:", plugin.__name__)
     plugin_functions = dir(plugin)
 
     print(config['plugin_config'][plugin.__name__])
@@ -62,7 +65,7 @@ for plugin in plugins:
             else:
                 print("Plugin has no config set! Not calling config!")
         except:
-            pass
+            print("Exception!")
 
 pce = pce.IllumioPCE()
 pce.pce = config['pce']
@@ -78,14 +81,16 @@ logging.info("Entering main poll loop with interval: %s", config['pce_poll_inter
 run = 0
 current_date = 0
 
+current_date = datetime.datetime.now(datetime.timezone.utc).astimezone()
+
 while True:
     payload = {'timestamp[gte]': current_date}
-    if run == 0:
-        r3c = pce.client.get('/api/v2/orgs/1/events')
-    else:
-        r3c = pce.client.get('/api/v2/orgs/1/events', params = payload)
+    r3c = pce.client.get('/api/v2/orgs/1/events', params = payload)
 
-    print(json.dumps(r3c, indent=2))
+    for event in r3c:
+        for plugin in plugins:
+            plugin.output(str(event), config['plugin_config'][plugin.__name__])
+
     # increment run parameter
     run = run+1
     current_date = datetime.datetime.now(datetime.timezone.utc).astimezone()
