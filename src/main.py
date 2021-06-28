@@ -88,8 +88,19 @@ while True:
     r3c = pce.client.get('/api/v2/orgs/1/events', params = payload)
 
     for event in r3c:
-        for plugin in plugins:
-            plugin.output(str(event), config['plugin_config'][plugin.__name__])
+        if event['event_type'] in watchers:
+            print("Matching event type:", event['event_type'])
+
+            # check if status matches
+            if event['status'] == watchers[event['event_type']]['status']:
+                print("Hooray, even the status matches... Now decide what to do with it!")
+                plugin_name = ''
+                if 'plugin' in watchers[event['event_type']]:
+                    print("Found matching plugin:", watchers[event['event_type']]['plugin'])
+                    plugin_name = watchers[event['event_type']]['plugin']
+                for plugin in plugins:
+                    if plugin.__name__ == plugin_name:
+                        plugin.output(str(event), config['plugin_config'][plugin.__name__])
 
     # increment run parameter
     run = run+1
