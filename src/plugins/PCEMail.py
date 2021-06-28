@@ -1,4 +1,4 @@
-from subclass import OutputPlugin
+from outputplugin import OutputPlugin
 import smtplib
 from jinja2 import Template
 from email.mime.multipart import MIMEMultipart

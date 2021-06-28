@@ -1,26 +1,25 @@
 import slack_sdk
 import json
-from subclass import OutputPlugin
-
-client_id = ''
-app_id = ''
-client_secret = ''
+from jinja2 import Template
+from outputplugin import OutputPlugin
 
 class PCESlack(OutputPlugin):
-    def config(config):
-        print("Plugin config handler reached!")
-        client_id = config['client_id']
-        client_secret = config['client_secret']
-        slack_bot_token = config['slack_bot_token']
-        print(slack_bot_token)
+    slack_bot_token = ''
+    template = Template('{{ event["event_type"] }}, {{ event["created_by"]["user"]["username"] }} from {{ event["action"]["src_ip"] }}. ')
+
+    def config(self, config):
+        self.slack_bot_token = config['slack_bot_token']
+        if 'template' in config:
+            self.template = config['template']
     
-    def output(output, config):
-        slack_bot_token = config['slack_bot_token']
-        client = slack_sdk.WebClient(token=slack_bot_token)
+    def output(self, output):
+        client = slack_sdk.WebClient(token=self.slack_bot_token)
+        template_output = self.template.render(event=output)
+
         try:
             response = client.chat_postMessage(
                     channel="#pce",
-                    text=output
+                    text=template_output
                 )
         except SlackApiError as e:
             assert e.response["error"]

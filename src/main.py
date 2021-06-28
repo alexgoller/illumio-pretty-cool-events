@@ -10,7 +10,7 @@ import sys
 import pce
 import json
 import datetime
-from subclass import OutputPlugin
+from outputplugin import OutputPlugin
 from straight.plugin import load
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
@@ -49,25 +49,15 @@ for watcher in watchers:
 plugins = load('plugins', subclasses=OutputPlugin)
 handlers = plugins.produce()
 
-for plugin in plugins:
-    print("Plugin name:", plugin.__name__)
+# print("Handlers:")
+# for handler in handlers:
+#     print(handler)
+#     print(dir(handler))
+#     print(handler.__class__.__name__)
 
-for plugin in plugins:
-    print("Plugin name:", plugin.__name__)
-    plugin_functions = dir(plugin)
-
-    print(config['plugin_config'][plugin.__name__])
-
-    if 'config' in plugin_functions:
-        print("Has config function. Calling it!")
-        try:
-            if plugin.__name__ in config['plugin_config']:
-                print("Config section found. Executing!")
-                plugin.config(config['plugin_config'][plugin.__name__])
-            else:
-                print("Plugin has no config set! Not calling config!")
-        except:
-            print("Exception!")
+# setup configs for handlers/plugins
+for handler in handlers:
+    handler.config(config['plugin_config'][handler.__class__.__name__])
 
 pce = pce.IllumioPCE()
 pce.pce = config['pce']
@@ -100,9 +90,9 @@ while True:
                 if 'plugin' in watchers[event['event_type']]:
                     print("Found matching plugin:", watchers[event['event_type']]['plugin'])
                     plugin_name = watchers[event['event_type']]['plugin']
-                for plugin in plugins:
-                    if plugin.__name__ == plugin_name:
-                        plugin.output(str(event), config['plugin_config'][plugin.__name__])
+                for handler in handlers:
+                    if handler.__class__.__name__ == plugin_name:
+                        handler.output(event)
 
     # increment run parameter
     run = run+1

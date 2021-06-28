@@ -1,11 +1,14 @@
-from subclass import OutputPlugin
+from outputplugin import OutputPlugin
 
 class PCEStdout(OutputPlugin):
-    def config(config):
+    prepend_str = ''
+    append_str = ''
+    def config(self,config):
         print("Plugin config handler reached!")
-        # do config stuff here
+        if config['prepend']:
+            self.prepend_str = config['prepend']
     
-    def output(event, config):
+    def output(self, output):
         # output function, do output stuff here
-        print("Plugin config handler reached!")
-        print(event)
+        print("Plugin output handler reached!")
+        print(self.prepend_str, output)
