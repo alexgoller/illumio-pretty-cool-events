@@ -10,6 +10,7 @@ import sys
 import pce
 import json
 import datetime
+from subclass import OutputPlugin
 from straight.plugin import load
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
@@ -45,7 +46,8 @@ for watcher in watchers:
     print(watcher)
 
 ### check plugins
-plugins = load('plugins')
+plugins = load('plugins', subclasses=OutputPlugin)
+handlers = plugins.produce()
 
 for plugin in plugins:
     print("Plugin name:", plugin.__name__)
