@@ -1,0 +1,32 @@
+---
+config:
+        pce: pce_host
+        pce_api_user: api_user
+        pce_api_secret: api_secret
+        pce_org: 1
+        pce_poll_interval: 10
+        plugin_config:
+                PCESNS:
+                        access_key: <aws access key id>
+                        access_key_secret: <aws access key secret>
+                        aws_region_name: <aws region for SNS>
+                PCEMail:
+                        smtp_host: <smtp gateway:port>
+                        smtp_user: <smtp user>
+                        smtp_password: <smtp password>
+                        smtp_port: <smtp port (optional)>
+                PCEStdout:
+                        prepend: "Pretty cool events: "
+                PCESlack:
+                        slack_bot_token: <slack_bot_token>
+
+watchers:
+        user.login:
+                status: success
+                plugin: PCESNS
+        workloads.bulk_update:
+                status: success
+                plugin: PCEStdout
+        request.authentication_failed:
+                status: failure
+                plugin: PCESlack
