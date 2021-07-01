@@ -32,7 +32,7 @@ class PCEMail(OutputPlugin):
         smtphost = self.smtp_host
         try:
             msg['From'] = "alex@ryte.de"
-            msg['To'] = "alex.goller@illumio.com"
+            msg['To'] = "alex@ryte.de"
             msg['Subject'] = "Pretty-Cool-Events Notification"
             msg.attach(MIMEText(message, 'plain'))
             server = smtplib.SMTP(self.smtp_host)
@@ -41,5 +41,5 @@ class PCEMail(OutputPlugin):
             server.sendmail(msg['From'], msg['To'], msg.as_string())
             server.quit()
             print("Successfully sent email message to %s:" % (msg['To']))
-        except:
-            print("Exception")
+        except smtplib.SMTPException as e:
+            print("Exception:", e)
