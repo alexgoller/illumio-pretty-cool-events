@@ -70,12 +70,32 @@ pce.pce_org = config['pce_org']
 pce.client_init()
 
 
-# def flaskTask():
-#     app = Flask('pretty-cool-events')
+app = Flask('pretty-cool-events')
 
-# @app.route("/")
-# def pceMain():
-#     return "<p>Hello World!</p>"
+def flaskTask():
+    if 'httpd_listener_address' in config:
+        address = config['httpd_listener_address']
+    else:
+        address = '0.0.0.0'
+
+    if 'httpd_listener_port' in config:
+        flask_port = config['httpd_listener_port']
+    else:
+        flask_port = 8443
+
+    app.run(host=address, port=flask_port)
+
+@app.route("/")
+def pceMain():
+    return "<p>Pretty cool events</p>"
+
+@app.route("/watchers")
+def pceWatchers():
+    return str(watchers)
+
+# @app.route("/config")
+# def pceConfig():
+#     return str(config)
 
 # main loop
 def main():
@@ -110,5 +130,5 @@ def main():
         time.sleep(config['pce_poll_interval'])
 
 threading.Thread(target=main).start()
-# threading.Thread(target=flaskTask).start()
+threading.Thread(target=flaskTask).start()
 
