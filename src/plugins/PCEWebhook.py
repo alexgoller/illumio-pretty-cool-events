@@ -1,3 +1,4 @@
+from outputplugin import OutputPlugin
 import requests
 import json
 
