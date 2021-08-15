@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 
 import requests
 import argparse
@@ -10,6 +11,8 @@ import sys
 import pce
 import json
 import datetime
+import threading
+from flask import Flask
 from outputplugin import OutputPlugin
 from straight.plugin import load
 
@@ -67,34 +70,45 @@ pce.pce_org = config['pce_org']
 pce.client_init()
 
 
+# def flaskTask():
+#     app = Flask('pretty-cool-events')
+
+# @app.route("/")
+# def pceMain():
+#     return "<p>Hello World!</p>"
 
 # main loop
-logging.info("Entering main poll loop with interval: %s", config['pce_poll_interval'])
-run = 0
-current_date = 0
-
-current_date = datetime.datetime.now(datetime.timezone.utc).astimezone()
-
-while True:
-    payload = {'timestamp[gte]': current_date}
-    r3c = pce.client.get('/api/v2/orgs/1/events', params = payload)
-
-    for event in r3c:
-        if event['event_type'] in watchers:
-            print("Matching event type:", event['event_type'])
-
-            # check if status matches
-            if event['status'] == watchers[event['event_type']]['status']:
-                print("Hooray, even the status matches... Now decide what to do with it!")
-                plugin_name = ''
-                if 'plugin' in watchers[event['event_type']]:
-                    print("Found matching plugin:", watchers[event['event_type']]['plugin'])
-                    plugin_name = watchers[event['event_type']]['plugin']
-                for handler in handlers:
-                    if handler.__class__.__name__ == plugin_name:
-                        handler.output(event)
-
-    # increment run parameter
-    run = run+1
+def main():
+    logging.info("Entering main poll loop with interval: %s", config['pce_poll_interval'])
+    run = 0
+    current_date = 0
+    
     current_date = datetime.datetime.now(datetime.timezone.utc).astimezone()
-    time.sleep(config['pce_poll_interval'])
+    
+    while True:
+        payload = {'timestamp[gte]': current_date}
+        r3c = pce.client.get('/api/v2/orgs/1/events', params = payload)
+    
+        for event in r3c:
+            if event['event_type'] in watchers:
+                print("Matching event type:", event['event_type'])
+    
+                # check if status matches
+                if event['status'] == watchers[event['event_type']]['status']:
+                    print("Hooray, even the status matches... Now decide what to do with it!")
+                    plugin_name = ''
+                    if 'plugin' in watchers[event['event_type']]:
+                        print("Found matching plugin:", watchers[event['event_type']]['plugin'])
+                        plugin_name = watchers[event['event_type']]['plugin']
+                    for handler in handlers:
+                        if handler.__class__.__name__ == plugin_name:
+                            handler.output(event)
+    
+        # increment run parameter
+        run = run+1
+        current_date = datetime.datetime.now(datetime.timezone.utc).astimezone()
+        time.sleep(config['pce_poll_interval'])
+
+threading.Thread(target=main).start()
+# threading.Thread(target=flaskTask).start()
+
