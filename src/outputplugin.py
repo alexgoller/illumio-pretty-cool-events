@@ -1,3 +1,5 @@
+from jinja2 import Template
+
 class OutputPlugin:
     def __init__(self):
         print("Do the init thing")
