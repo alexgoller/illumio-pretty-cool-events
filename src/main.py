@@ -12,6 +12,7 @@ import pce
 import json
 import datetime
 import threading
+import regex
 from flask import Flask
 from outputplugin import OutputPlugin
 from straight.plugin import load
@@ -123,12 +124,29 @@ def main():
                     for handler in handlers:
                         if handler.__class__.__name__ == plugin_name:
                             handler.output(event)
+            else:
+                evt = event['event_type']
+                for key, watcher in watchers.items():
+                    if evt.startswith(key):
+                        if event['status'] == watchers[key]['status']:
+                            plugin_name = ''
+                            if 'plugin' in watchers[key]:
+                                print("Found matching plugin:", watchers[key]['plugin'])
+                                plugin_name = watchers[key]['plugin']
+                                for handler in handlers:
+                                    if handler.__class__.__name__ == plugin_name:
+                                        handler.output(event)
+
     
         # increment run parameter
         run = run+1
         current_date = datetime.datetime.now(datetime.timezone.utc).astimezone()
         time.sleep(config['pce_poll_interval'])
 
+logging.info("Starting main task.")
 threading.Thread(target=main).start()
-threading.Thread(target=flaskTask).start()
+
+if config['httpd']:
+    logging.info("Starting httpd task.")
+    threading.Thread(target=flaskTask).start()
 
