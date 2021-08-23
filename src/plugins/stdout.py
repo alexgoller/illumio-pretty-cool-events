@@ -9,9 +9,9 @@ class PCEStdout(OutputPlugin):
         if config['prepend']:
             self.prepend_str = config['prepend']
     
-    def output(self, output):
+    def output(self, output, template='default.html'):
         # output function, do output stuff here
-        template = self.env.get_template('default.html')
+        template = self.env.get_template(template)
         print(template)
 
         print(pprint.pprint(output))
