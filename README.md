@@ -10,6 +10,33 @@ It will then call plugin actions based on a user configuration (config.yaml).
 Configuration is done via a YAML config file, find a sample file in the
 config.yaml.sample in the base directory.
 
+## Config file sections
+
+### config
+
+Global configuration
+
+List of keys:
+
+* pce - the pce fqdn
+* pce_api_user - the pce api key user (api_xyz1234...)
+* pce_api_secret - the pce api key secret
+* pce_org - the pce org
+* pce_poll_interval - the number of seconds between checking for events
+* httpd - run the builtin flask httpd (default: no, don't use in production)
+* httpd_listener_address - IP which httpd listens on
+* httpd_listener_port - Port for httpd listener
+* default_template - the default template to use in output plugins
+
+#### plugin_config
+
+Inside config you can configure each of the plugins
+
+### watchers
+
+Section to specify watchers. Watchers are event types pretty-cool-events should listen to.
+
+
 # Available plugins (Work in progress)
 
 * PCEStdout  - directly output events to stdout
@@ -49,7 +76,8 @@ loop
 
 # TODO
 
-Dockerfile for easy deployment.
+* Dockerfile for easy deployment.
+* throttling of specific event types
 
 # Ideas
 
