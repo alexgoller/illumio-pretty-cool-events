@@ -50,3 +50,11 @@ loop
 # TODO
 
 Dockerfile for easy deployment.
+
+# Ideas
+
+* Plugin to execute local actions - e.g. git commit policy after each PCE provision
+* Notify people on slack for problems in the PCE or process
+* Get policy and check for constraints
+* Do something useful with tampering events
+* etc.
