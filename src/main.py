@@ -110,32 +110,40 @@ def main():
         payload = {'timestamp[gte]': current_date}
         r3c = pce.client.get('/api/v2/orgs/1/events', params = payload)
     
+
         for event in r3c:
+            template = config['default_template']
             if event['event_type'] in watchers:
                 print("Matching event type:", event['event_type'])
-    
-                # check if status matches
-                if event['status'] == watchers[event['event_type']]['status']:
-                    print("Hooray, even the status matches... Now decide what to do with it!")
-                    plugin_name = ''
-                    if 'plugin' in watchers[event['event_type']]:
-                        print("Found matching plugin:", watchers[event['event_type']]['plugin'])
-                        plugin_name = watchers[event['event_type']]['plugin']
-                    for handler in handlers:
-                        if handler.__class__.__name__ == plugin_name:
-                            handler.output(event)
+
+                for w in watchers[event['event_type']]:
+                    if event['status'] == w['status']:
+                        print("Hooray, even the status matches... Now decide what to do with it!")
+                        plugin_name = ''
+                        if 'plugin' in w:
+                            print("Found matching plugin:", w['plugin'])
+                            plugin_name = w['plugin']
+                        if 'template' in w:
+                            template = w['template']
+
+                        for handler in handlers:
+                            if handler.__class__.__name__ == plugin_name:
+                                handler.output(event, template=template)
             else:
                 evt = event['event_type']
                 for key, watcher in watchers.items():
                     if evt.startswith(key):
-                        if event['status'] == watchers[key]['status']:
-                            plugin_name = ''
-                            if 'plugin' in watchers[key]:
-                                print("Found matching plugin:", watchers[key]['plugin'])
-                                plugin_name = watchers[key]['plugin']
-                                for handler in handlers:
-                                    if handler.__class__.__name__ == plugin_name:
-                                        handler.output(event)
+                        for w in watchers[key]:
+                            if event['status'] == w['status']:
+                                plugin_name = ''
+                                if 'template' in w:
+                                    template = w['template']
+                                if 'plugin' in w:
+                                    print("Found matching plugin:", w['plugin'])
+                                    plugin_name = w['plugin']
+                                    for handler in handlers:
+                                        if handler.__class__.__name__ == plugin_name:
+                                            handler.output(event, template=template)
 
     
         # increment run parameter
