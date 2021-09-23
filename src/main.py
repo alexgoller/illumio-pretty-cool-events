@@ -57,7 +57,10 @@ handlers = plugins.produce()
 
 # setup configs for handlers/plugins
 for handler in handlers:
-    handler.config(config['plugin_config'][handler.__class__.__name__])
+    if handler.__class__.__name__ in config['plugin_config']:
+        handler.config(config['plugin_config'][handler.__class__.__name__])
+    else:
+        logging.info("No config found for {}".format(handler.__class__.__name__))
 
 pce = pce.IllumioPCE()
 pce.pce = config['pce']
