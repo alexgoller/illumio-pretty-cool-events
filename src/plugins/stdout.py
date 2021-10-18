@@ -1,4 +1,5 @@
 from outputplugin import OutputPlugin
+import pprint
 
 class PCEStdout(OutputPlugin):
     prepend_str = ''
@@ -8,7 +9,11 @@ class PCEStdout(OutputPlugin):
         if config['prepend']:
             self.prepend_str = config['prepend']
     
-    def output(self, output):
+    def output(self, output, template='default.html'):
         # output function, do output stuff here
+        template = self.env.get_template(template)
+        print(template)
+
+        print(pprint.pprint(output))
         print("Plugin output handler reached!")
-        print(self.prepend_str, output)
+        print(template.render(output))
