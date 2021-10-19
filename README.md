@@ -68,6 +68,13 @@ loop
 
     template.render(output)
 
+# Templates included
+
+* default.html - default template
+* default-slacks.html - a slack BlockKit template to make for fancier slack notifications.
+* sms.tmpl - Send SMS with the event and a link to the Illumio Core PCE UI
+* email.tmp - standard email template
+
 # How to write your own plugin
 
 * create a new plugin under plugins
