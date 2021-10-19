@@ -37,27 +37,22 @@ if os.path.exists(args.config):
         except yaml.YAMLError as exc:
             logging.warn("Config file read error: %s", exc)
 else:
-    print("Can't open config file: ", args.config)
+    logging.info("Can't open config file: ", args.config)
     exit()
 
 config = data['config']
 
 ### watcher stuff
 watchers = data['watchers']
-print(type(watchers))
+logging.debug("Watchers type: {}".format(type(watchers)))
 
+logging.info("Configured watchers:")
 for watcher in watchers:
-    print(watcher)
+    logging.info("    - {}".format(watcher))
 
 ### check plugins
 plugins = load('plugins', subclasses=OutputPlugin)
 handlers = plugins.produce()
-
-# print("Handlers:")
-# for handler in handlers:
-#     print(handler)
-#     print(dir(handler))
-#     print(handler.__class__.__name__)
 
 # setup configs for handlers/plugins
 for handler in handlers:
@@ -108,20 +103,20 @@ def main():
     
     while True:
         payload = {'timestamp[gte]': current_date}
-        r3c = pce.client.get('/api/v2/orgs/1/events', params = payload)
+        r3c = pce.client.get("/api/v2/orgs/{}/events".format(pce.pce_org), params = payload)
     
 
         for event in r3c:
             template = config['default_template']
             if event['event_type'] in watchers:
-                print("Matching event type:", event['event_type'])
+                logging.debug("Matching event type:", event['event_type'])
 
                 for w in watchers[event['event_type']]:
                     if event['status'] == w['status']:
-                        print("Hooray, even the status matches... Now decide what to do with it!")
+                        logging.debug("Hooray, even the status matches... Now decide what to do with it!")
                         plugin_name = ''
                         if 'plugin' in w:
-                            print("Found matching plugin:", w['plugin'])
+                            logging.debug("Found matching plugin:", w['plugin'])
                             plugin_name = w['plugin']
                         if 'template' in w:
                             template = w['template']
@@ -139,7 +134,7 @@ def main():
                                 if 'template' in w:
                                     template = w['template']
                                 if 'plugin' in w:
-                                    print("Found matching plugin:", w['plugin'])
+                                    logging.debug("Found matching plugin:", w['plugin'])
                                     plugin_name = w['plugin']
                                     for handler in handlers:
                                         if handler.__class__.__name__ == plugin_name:
