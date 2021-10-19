@@ -1,6 +1,6 @@
 ---
 config:
-        pce: pce212-lumos.illumio.microsegment.io:8443
+        pce: pce212-sample.foo.com
         pce_api_user: api_1d9f490a0eabff1c4
         pce_api_secret: 42248bc248f8044f0869b46da737b1a32896123e308a086fb38e960f122363d5
         pce_org: 1
