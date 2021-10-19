@@ -130,4 +130,5 @@ dmypy.json
 
 # config file
 config.yaml
+config.yaml.old
 event.sample

@@ -31,7 +31,7 @@ class PCESyslog(OutputPlugin):
         self.logger = mylogger
         
     
-    def output(self, output):
+    def output(self, output, extra_data):
         mylogger = self.logger
         mylogger.info(output)
         

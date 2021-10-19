@@ -120,10 +120,15 @@ def main():
                             plugin_name = w['plugin']
                         if 'template' in w:
                             template = w['template']
+                        if 'extra_data' in w:
+                            logging.debug("Found extra_data.")
+                            extra_data = w['extra_data']
+                        else:
+                            extra_data = {}
 
                         for handler in handlers:
                             if handler.__class__.__name__ == plugin_name:
-                                handler.output(event, template=template)
+                                handler.output(event, extra_data)
             else:
                 evt = event['event_type']
                 for key, watcher in watchers.items():
@@ -136,9 +141,15 @@ def main():
                                 if 'plugin' in w:
                                     logging.debug("Found matching plugin:", w['plugin'])
                                     plugin_name = w['plugin']
-                                    for handler in handlers:
-                                        if handler.__class__.__name__ == plugin_name:
-                                            handler.output(event, template=template)
+                                if 'extra_data' in w:
+                                    logging.debug("Found extra_data.")
+                                    extra_data = w['extra_data']
+                                else:
+                                    extra_data = {}
+
+                                for handler in handlers:
+                                    if handler.__class__.__name__ == plugin_name:
+                                        handler.output(event, extra_data)
 
     
         # increment run parameter

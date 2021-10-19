@@ -1,4 +1,3 @@
-import jinja2
 from jinja2 import Environment, FileSystemLoader, select_autoescape, Template
 
 class OutputPlugin:

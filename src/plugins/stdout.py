@@ -6,14 +6,18 @@ class PCEStdout(OutputPlugin):
     append_str = ''
     def config(self,config):
         print("Plugin config handler reached!")
-        if config['prepend']:
+        if 'prepend' in config:
             self.prepend_str = config['prepend']
     
-    def output(self, output, template='default.html'):
+    def output(self, output, extra_data):
         # output function, do output stuff here
-        template = self.env.get_template(template)
-        print(template)
+        if 'template' in extra_data:
+            rtemplate = self.env.get_template(extra_data['template'])
+            print(rtemplate)
+        else:
+            rtemplate = self.env.get_template('default.html')
+
 
         print(pprint.pprint(output))
         print("Plugin output handler reached!")
-        print(template.render(output))
+        print(rtemplate.render(output))

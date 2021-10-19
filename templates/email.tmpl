@@ -1,3 +1,42 @@
-Pretty cool events template
+<!doctype html>
+<html lang="en">
+  <head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 
-{{ event["event_type"] }}
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh
+0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.5.0/font/bootstrap-icons.css">
+
+    <title>Control Panel</title>
+  </head>
+  <body style="font-size: small;">
+    <div class="container">
+      <div class="container">
+          <img src="https://www.illumio.com/sites/default/files/styles/thumbnail/public/2020-04/Illumio-Logo-Color.png"/>
+      </div>
+      <div class="container">
+        <h1>PCE Notification</h1>
+      </div>
+      <div class="container">
+          <h2>{{ event_type }}</h2>
+          <div class="container">
+               New event from PCE {{ pce_fqdn }}
+          </div>
+          <div class="container">
+              {% if created_by.user is defined %}
+              Event created by {{ created_by.user.username }}
+              {% endif %}
+          </div>
+          <div class="container">
+              <button type="button" class="btn btn-primary">
+                  <a href="https://{{ pce_fqdn }}:8443/#/{{ href | replace("/orgs/1", "")}}">View on PCE</a>
+              </button>
+          </div>
+      </div>
+    </div>
+  </body>
+</html>
+

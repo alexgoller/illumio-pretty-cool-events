@@ -20,6 +20,17 @@ class PCESNS(OutputPlugin):
             region_name = self.aws_region_name
         )
 
-    def output(self, output):
-        template_output = self.template.render(event=output)
-        self.client.publish(PhoneNumber='004916092481632', Message=template_output)
+    def output(self, output, extra_data):
+        template = 'default.html'
+        if 'template' in extra_data:
+            template = extra_data['template']
+
+        if 'phone_number' in extra_data:
+            phone_number = extra_data['phone_number']
+        else:
+            logging.info("No phone number given. Not sending message")
+
+        rtemplate = self.env.get_template(template)
+        template_output = rtemplate.render(output)
+
+        self.client.publish(PhoneNumber=phone_number, Message=template_output)

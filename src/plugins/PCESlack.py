@@ -1,25 +1,41 @@
+from outputplugin import OutputPlugin
 import slack_sdk
 import json
 from jinja2 import Template
-from outputplugin import OutputPlugin
 
 class PCESlack(OutputPlugin):
     slack_bot_token = ''
-    template = Template('{{ event["event_type"] }}, {{ event["created_by"]["user"]["username"] }} from {{ event["action"]["src_ip"] }}. ')
 
     def config(self, config):
         self.slack_bot_token = config['slack_bot_token']
         if 'template' in config:
             self.template = config['template']
     
-    def output(self, output):
+    def output(self, output, extra_data):
+        print("Extra data: {}".format(extra_data))
+        if 'template' in extra_data:
+            template = extra_data['template']
+        else:
+            template = 'default.html'
+
+        if 'channel' in extra_data:
+            channel = extra_data['channel']
+        else:
+            channel = '#pce'
+
+        print("PCESlack: output: {}".format(output))
         client = slack_sdk.WebClient(token=self.slack_bot_token)
-        template_output = self.template.render(event=output)
+
+        rtemplate = self.env.get_template(template)
+        template_output = rtemplate.render(output)
 
         try:
             response = client.chat_postMessage(
-                    channel="#pce",
-                    text=template_output
-                )
-        except SlackApiError as e:
+                    channel=channel,
+                    blocks = template_output,
+                    text = 'Foo'
+            )
+            print("Posted slack message: {}".format(template_output))
+        except slack_sdk.errors.SlackApiError as e:
+            print("Exception caught: {}".format(e))
             assert e.response["error"]
