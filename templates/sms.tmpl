@@ -1,0 +1,2 @@
+New event: {{ event_type }} - {% if created_by.user is defined %} created by {{ created_by.user.username }} {% endif %}
+View on PCE: https://{{ pce_fqdn }}:8443/#/{{ href | replace("/orgs/1", "")}}
