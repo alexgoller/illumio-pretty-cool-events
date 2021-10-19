@@ -1,32 +1,89 @@
 ---
 config:
-        pce: pce_host
-        pce_api_user: api_user
-        pce_api_secret: api_secret
+        pce: pce212-lumos.illumio.microsegment.io:8443
+        pce_api_user: api_1d9f490a0eabff1c4
+        pce_api_secret: 42248bc248f8044f0869b46da737b1a32896123e308a086fb38e960f122363d5
         pce_org: 1
         pce_poll_interval: 10
+        httpd: false
+        httpd_listener_address: 0.0.0.0
+        httpd_listener_port: 8443
+        default_template: default.html
         plugin_config:
                 PCESNS:
-                        access_key: <aws access key id>
-                        access_key_secret: <aws access key secret>
-                        aws_region_name: <aws region for SNS>
+                        access_key: #secret
+                        access_key_secret: #secret
+                        aws_region_name: eu-central-1
                 PCEMail:
-                        smtp_host: <smtp gateway:port>
-                        smtp_user: <smtp user>
-                        smtp_password: <smtp password>
-                        smtp_port: <smtp port (optional)>
+                        smtp_host: email-smtp.eu-central-1.amazonaws.com:587
+                        smtp_user: #secret
+                        smtp_password: #secret
+                        smtp_port: 587
+                        email_to: noreply@illum.io
                 PCEStdout:
                         prepend: "Pretty cool events: "
                 PCESlack:
-                        slack_bot_token: <slack_bot_token>
+                        template: default-slack.html
+                        app_id: #secret
+                        client_id: #secret
+                        client_secret: #secret
+                        signing_secret: #secret
+                        slack_bot_token: #secret
+                PCEWebhook:
+                        bearer_token:
+                        url:
+                        data:
+                PCETeams:
+                PCESyslog:
+                        syslog_host: localhost
+                        syslog_port: 10514
+                        template: 'syslog.tmpl'
+                        syslog_cert_file: ''
+
 
 watchers:
+        user.:
+                - status: success
+                  plugin: PCESlack
+                  extra_data:
+                    template: default-slack.html
+                    channel: '#random'
+                - status: success
+                  plugin: PCEStdout
+                  extra_data:
+                    template: default.html
+                    channel: '#pce'
         user.login:
-                status: success
-                plugin: PCESNS
+                - status: success
+                  plugin: PCESlack
+                  extra_data:
+                    template: default-slack.html
+                    channel: '#general'
+                - status: success
+                  plugin: PCEMail
+                  extra_data:
+                    template: email.tmpl
+                    email_to: alex@ryte.de
+                - status: success
+                  plugin: PCESNS
+                  extra_data:
+                    template: sms.tmpl
+                    phone_number: #secret
+        user.logout:
+                - status: success
+                  plugin: PCESlack
+                  extra_data:
+                    template: default-slack.html
+                    channel: '#general'
         workloads.bulk_update:
-                status: success
-                plugin: PCEStdout
+                - status: success
+                  plugin: PCESlack
+                  extra_data:
+                    template: default-slack.html
+                    channel: '#general'
         request.authentication_failed:
-                status: failure
-                plugin: PCESlack
+                - status: failure
+                  plugin: PCESlack
+                  extra_data:
+                    template: default-slack.html
+                    channel: '#pce'
