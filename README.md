@@ -36,6 +36,9 @@ Inside config you can configure each of the plugins
 
 Section to specify watchers. Watchers are event types pretty-cool-events should listen to.
 
+Each event type in the PCE and wildcard event types can have one or more watchers.
+The example in config.yaml.example will configure 3 watchers for the user.login event to go
+to Slack, Mail and SNS/SMS.
 
 # Available plugins (Work in progress)
 

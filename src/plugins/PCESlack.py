@@ -12,6 +12,7 @@ class PCESlack(OutputPlugin):
             self.template = config['template']
     
     def output(self, output, extra_data):
+        print("PCESlack: data: {}".format(output))
         print("Extra data: {}".format(extra_data))
         if 'template' in extra_data:
             template = extra_data['template']
@@ -23,11 +24,12 @@ class PCESlack(OutputPlugin):
         else:
             channel = '#pce'
 
-        print("PCESlack: output: {}".format(output))
         client = slack_sdk.WebClient(token=self.slack_bot_token)
 
         rtemplate = self.env.get_template(template)
         template_output = rtemplate.render(output)
+
+        print("PCESlack: output: {}".format(template_output))
 
         try:
             response = client.chat_postMessage(

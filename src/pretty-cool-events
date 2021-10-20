@@ -58,6 +58,8 @@ handlers = plugins.produce()
 for handler in handlers:
     handler.config(config['plugin_config'][handler.__class__.__name__])
 
+stats = {'events_received': 0, 'events_matched': 0 }
+
 pce = pce.IllumioPCE()
 pce.pce = config['pce']
 pce.pce_api_user = config['pce_api_user']
@@ -89,9 +91,13 @@ def pceMain():
 def pceWatchers():
     return str(watchers)
 
-# @app.route("/config")
-# def pceConfig():
-#     return str(config)
+@app.route("/config")
+def pceConfig():
+    return str(config)
+
+@app.route("/stats")
+def pceStats():
+    return str(stats)
 
 # main loop
 def main():
@@ -107,8 +113,10 @@ def main():
     
 
         for event in r3c:
+            stats['events_received'] = stats['events_received'] + 1
             template = config['default_template']
             if event['event_type'] in watchers:
+                stats['events_matched'] = stats['events_matched'] + 1
                 logging.debug("Matching event type:", event['event_type'])
 
                 for w in watchers[event['event_type']]:

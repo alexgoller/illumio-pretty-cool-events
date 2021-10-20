@@ -23,7 +23,7 @@
 			"type": "section",
 			"text": {
 				"type": "plain_text",
-				"text": "{{ event_type }}",
+				"text": "Event: {{ event_type }}",
 				"emoji": true
 			}
 		},
@@ -31,7 +31,7 @@
 			"type": "section",
 			"text": {
 				"type": "plain_text",
-				"text": "{% if created_by.user is defined %} Event created by {{ created_by.user.username }} {% endif %}",
+				"text": "Created by: {% if created_by.user is defined %} {{ created_by.user.username }} {% endif %}",
 				"emoji": true
 			}
 		},
@@ -49,7 +49,7 @@
 					"emoji": true
 				},
 				"value": "View on PCE",
-				"url": "https://{{ pce_fqdn }}:8443/#/{{ href | replace("/orgs/1", "")}}",
+				"url": "https://{{ pce_fqdn }}:8443/#{{ href | replace("/orgs/1", "")}}",
 				"action_id": "button-action"
 			}
 		}

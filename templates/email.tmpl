@@ -30,9 +30,10 @@
               Event created by {{ created_by.user.username }}
               {% endif %}
           </div>
+          <hr/>
           <div class="container">
-              <button type="button" class="btn btn-primary">
-                  <a href="https://{{ pce_fqdn }}:8443/#/{{ href | replace("/orgs/1", "")}}">View on PCE</a>
+              <button type="button" class="btn btn-primary btn-lg btn-block">
+                  <a href="https://{{ pce_fqdn }}:8443/#{{ href | replace("/orgs/1", "")}}">View on PCE</a>
               </button>
           </div>
       </div>
