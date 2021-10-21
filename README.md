@@ -5,6 +5,10 @@ the Illumio Core Events API to get the latest audit events from the Illumio Core
 
 It will then call plugin actions based on a user configuration (config.yaml).
 
+# Installation
+
+  pip install -r requirements.txt
+
 # Configuration
 
 Configuration is done via a YAML config file, find a sample file in the
