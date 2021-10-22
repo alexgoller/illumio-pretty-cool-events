@@ -88,6 +88,12 @@ loop
 * be sure to import outputplugin for the basic functionality
 * populate your own methods with code
 
+# Known issues
+
+* python creates insecure request warnings if your certificates are not
+  official or trusted. You can circumvent by setting export
+PYTHONWARNINGS="ignore:Unverified HTTPS request"
+
 # TODO
 
 * Dockerfile for easy deployment.
