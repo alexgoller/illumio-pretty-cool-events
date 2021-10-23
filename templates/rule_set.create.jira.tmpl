@@ -1,0 +1,14 @@
+PCE {{ event.pce_fqdn }} created a new event: {{ event.event_type }}
+{% if event.created_by.user is defined %}
+Event created by {{ event.created_by.user.username }}
+{% endif %}
+
+
+Click here to view event [https://{{ event.pce_fqdn }}:8443/#{{ event.href|replace("/orgs/1", "") }}]
+
+Resource changes in event:
+
+{% for key in event.resource_changes %}
+    Click here to review ruleset {{ key.resource.rule_set.name }} - [https://{{ event.pce_fqdn }}:8443/#/rulesets/{{ key.resource.rule_set.href|replace("/orgs/1/sec_policy/draft/rule_sets/", "") }}/draft/rules]
+{% endfor %}
+
