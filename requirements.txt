@@ -3,3 +3,4 @@ slack_sdk==3.11.2
 rest3client==0.3.4
 boto3==1.17.8
 requests==2.25.1
+jira==3.0.1
