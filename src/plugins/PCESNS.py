@@ -2,6 +2,7 @@
 from outputplugin import OutputPlugin
 from jinja2 import Template
 import boto3
+import logging
 
 class PCESNS(OutputPlugin):
     template = Template('{{ event["event_type"] }}, {{ event["created_by"]["user"]["username"] }} from {{ event["action"]["src_ip"] }}. ')

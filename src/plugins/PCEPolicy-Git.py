@@ -1,5 +1,6 @@
 
 from execplugin import ExecPlugin
+import logging
 
 # stub, not functional
 

@@ -1,5 +1,6 @@
 from outputplugin import OutputPlugin
 import slack_sdk
+import logging
 import json
 from jinja2 import Template
 
@@ -12,8 +13,8 @@ class PCESlack(OutputPlugin):
             self.template = config['template']
     
     def output(self, output, extra_data):
-        print("PCESlack: data: {}".format(output))
-        print("Extra data: {}".format(extra_data))
+        logging.debug("PCESlack: data: {}".format(output))
+        logging.debug("Extra data: {}".format(extra_data))
         if 'template' in extra_data:
             template = extra_data['template']
         else:
@@ -29,7 +30,7 @@ class PCESlack(OutputPlugin):
         rtemplate = self.env.get_template(template)
         template_output = rtemplate.render(output)
 
-        print("PCESlack: output: {}".format(template_output))
+        logging.debug("PCESlack: output: {}".format(template_output))
 
         try:
             response = client.chat_postMessage(
@@ -37,7 +38,7 @@ class PCESlack(OutputPlugin):
                     blocks = template_output,
                     text = 'Foo'
             )
-            print("Posted slack message: {}".format(template_output))
+            logging.debug("Posted slack message: {}".format(template_output))
         except slack_sdk.errors.SlackApiError as e:
-            print("Exception caught: {}".format(e))
+            logging.debug("Exception caught: {}".format(e))
             assert e.response["error"]

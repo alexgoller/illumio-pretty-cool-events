@@ -13,7 +13,7 @@ import json
 import datetime
 import threading
 import regex
-from flask import Flask
+from flask import Flask, render_template
 from outputplugin import OutputPlugin
 from straight.plugin import load
 
@@ -58,7 +58,7 @@ handlers = plugins.produce()
 for handler in handlers:
     handler.config(config['plugin_config'][handler.__class__.__name__])
 
-stats = {'events_received': 0, 'events_matched': 0 }
+stats = {'events_received': 0, 'events_matched': 0, 'plugin_stats': {} }
 
 pce = pce.IllumioPCE()
 pce.pce = config['pce']
@@ -69,6 +69,12 @@ pce.client_init()
 
 
 app = Flask('pretty-cool-events')
+
+def updateMatchStats(event, plugin_name):
+    if plugin_name not in stats['plugin_stats']:
+        stats['plugin_stats'][plugin_name] = 1
+    else:
+        stats['plugin_stats'][plugin_name] = stats['plugin_stats'][plugin_name] + 1
 
 def flaskTask():
     if 'httpd_listener_address' in config:
@@ -85,7 +91,7 @@ def flaskTask():
 
 @app.route("/")
 def pceMain():
-    return "<p>Pretty cool events</p>"
+    return render_template('index.html', stats=stats, config=config)
 
 @app.route("/watchers")
 def pceWatchers():
@@ -136,8 +142,12 @@ def main():
 
                         for handler in handlers:
                             if handler.__class__.__name__ == plugin_name:
+                                logging.info("Routing event {} to {}".format(event['event_type'], plugin_name))
+                                updateMatchStats(event, plugin_name)
                                 handler.output(event, extra_data)
-            else:
+
+            elif event['event_type'] not in watchers:
+                logging.debug("Wildcard branch for event: {}".format(event))
                 evt = event['event_type']
                 for key, watcher in watchers.items():
                     if evt.startswith(key):
@@ -157,7 +167,12 @@ def main():
 
                                 for handler in handlers:
                                     if handler.__class__.__name__ == plugin_name:
+                                        stats['events_matched'] = stats['events_matched'] + 1
+                                        logging.info("Routing event {} to {}".format(event['event_type'], plugin_name))
+                                        updateMatchStats(event, plugin_name)
                                         handler.output(event, extra_data)
+                    else:
+                        logging.debug("No event found matching spec: {}".format(key))
 
     
         # increment run parameter

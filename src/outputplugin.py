@@ -1,4 +1,5 @@
 from jinja2 import Environment, FileSystemLoader, select_autoescape, Template
+import logging
 
 class OutputPlugin:
     # set this to true to get the PCE config credentials from the main pretty-cool-events config

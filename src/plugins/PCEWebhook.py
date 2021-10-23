@@ -1,5 +1,6 @@
 from outputplugin import OutputPlugin
 import requests
+import logging
 import json
 
 class PCEWebhook(OutputPlugin):

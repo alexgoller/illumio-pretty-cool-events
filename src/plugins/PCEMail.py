@@ -1,5 +1,6 @@
 from outputplugin import OutputPlugin
 import smtplib
+import logging
 from jinja2 import Template
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -39,7 +40,7 @@ class PCEMail(OutputPlugin):
             email_to = extra_data['email_to']
 
         rtemplate = self.env.get_template(template)
-        template_output = rtemplate.render(output)
+        template_output = rtemplate.render(event = output)
 
         msg = MIMEMultipart()
         message = template_output
@@ -54,6 +55,6 @@ class PCEMail(OutputPlugin):
             server.login(self.smtp_user, self.smtp_password)
             server.sendmail(msg['From'], email_to, msg.as_string())
             server.quit()
-            print("Successfully sent email message to %s:" % (msg['To']))
+            logging.info("Successfully sent email message to %s:" % (msg['To']))
         except smtplib.SMTPException as e:
-            print("Exception:", e)
+            logging.warn("Exception:", e)

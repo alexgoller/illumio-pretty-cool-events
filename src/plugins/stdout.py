@@ -1,5 +1,6 @@
 from outputplugin import OutputPlugin
 import pprint
+import logging
 
 class PCEStdout(OutputPlugin):
     prepend_str = ''

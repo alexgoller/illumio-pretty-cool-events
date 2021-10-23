@@ -23,19 +23,28 @@
       <div class="container">
           <h2>{{ event_type }}</h2>
           <div class="container">
-               New event from PCE {{ pce_fqdn }}
+               New event from PCE {{ event.pce_fqdn }}
           </div>
           <div class="container">
-              {% if created_by.user is defined %}
-              Event created by {{ created_by.user.username }}
+              {% if event.created_by.user is defined %}
+              Event created by {{ event.created_by.user.username }}
               {% endif %}
           </div>
           <hr/>
           <div class="container">
               <button type="button" class="btn btn-primary btn-lg btn-block">
-                  <a href="https://{{ pce_fqdn }}:8443/#{{ href | replace("/orgs/1", "")}}">View on PCE</a>
+                  <a href="https://{{ event.pce_fqdn }}:8443/#{{ event.href | replace("/orgs/1", "")}}">View on PCE</a>
               </button>
           </div>
+      </div>
+      <div class="container">
+          <pre>
+              <code>
+              {% for key, value in event.items() %}
+              {{ key }} : {{ value }}
+              {% endfor %}
+              </code>
+          </pre>
       </div>
     </div>
   </body>
