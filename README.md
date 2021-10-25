@@ -52,6 +52,7 @@ to Slack, Mail and SNS/SMS.
 * PCESNS     - send SMS/text messages via Amazon SNS
 * PCESyslog  - useful for SaaS instances or PoCs, poll the event API and send to syslog
 * PCEWebhook - send custom webhooks (needs more work)
+* PCEJira    - open a ticket in a jira project (especially useful for provisioning changes quickly)
 * PCETeams   - stub plugin, not functional - send to MS Teams
 
 
