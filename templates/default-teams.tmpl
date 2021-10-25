@@ -1,5 +1,5 @@
 ()[https://www.illumio.com/sites/default/files/styles/thumbnail/public/2020-04/Illumio-Logo-Color.png"]
 = Event: {{ event_type }}
-Created by: {% if created_by.user is defined %} {{ created_by.user.username }} {% endif %}
+Created by: {% if event.created_by is defined %} {{ event.created_by.user.username }} {% endif %}
 Go to event on PCE
-[https://{{ pce_fqdn }}:8443/#{{ href | replace("/orgs/1", "")}}]
+[https://{{ event.pce_fqdn }}:8443/#{{ event.href | replace("/orgs/1", "")}}]
