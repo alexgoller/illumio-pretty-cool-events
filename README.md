@@ -77,6 +77,45 @@ to Slack, Mail and SNS/SMS.
   * access_key_secret - aws access key secret for SNS service
   * aws_region_name - aws region name (e.g. eu-central-1)
  
+## PCEJira
+
+### Configuration
+
+* PCEJira:
+  + jira_server - url of jira server
+  + username - jira user name
+  + api_token - api_token of user
+  + project - the jira project to post to
+   
+## PCESlack
+
+### Configuration
+
+* PCESlack
+  + template - default-slack.html
+  + slack_bot_token: token
+
+## PCETeams
+
+### Configuration
+
+* PCETeams
+  + webhook: Webhook URL (https://docs.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/how-to/add-incoming-webhook)
+  + template: the template to use for this message/connector card
+
+
+## PCESyslog
+
+This is not in a good state and might be working or not.
+
+### Configuration
+
+* PCESyslog
+  +  syslog_host: host to send syslog to
+  +  syslog_port: syslog port
+  +  template: template to use for sending syslog
+  +  syslog_cert_file: TLS cert file
+
 # Plugin architecture
 
 Plugins can have a config block in the global config file, the config block
