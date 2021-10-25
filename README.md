@@ -55,8 +55,28 @@ to Slack, Mail and SNS/SMS.
 * PCEJira    - open a ticket in a jira project (especially useful for provisioning changes quickly)
 * PCETeams   - stub plugin, not functional - send to MS Teams
 
+## PCEStdout
 
+## PCEMail
 
+### Configuration
+
+* PCEMail: 
+  * smtp_host: smtp_host with optional portnumber
+  * smtp_user: smtp_username
+  * smtp_password: smtp_password
+  * smtp_port: smtp_port
+  * email_to: default email to send to
+
+## PCESNS
+
+### Configuration
+
+* PCESNS
+  * access_key - aws access key for SNS service
+  * access_key_secret - aws access key secret for SNS service
+  * aws_region_name - aws region name (e.g. eu-central-1)
+ 
 # Plugin architecture
 
 Plugins can have a config block in the global config file, the config block
