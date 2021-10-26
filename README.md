@@ -170,6 +170,10 @@ loop
 * be sure to import outputplugin for the basic functionality
 * populate your own methods with code
 
+    class <YourPlugin>(OutputPlugin):
+        def config(self,config):
+        def output(self,config):
+
 # Known issues
 
 * python creates insecure request warnings if your certificates are not
