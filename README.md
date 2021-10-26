@@ -8,6 +8,9 @@ It will then call plugin actions based on a user configuration (config.yaml).
 # Installation
 
     pip install -r requirements.txt
+
+Create your config file as specified in the [#Configuration] section.
+
     ./pretty-cool-events --config config.yaml
 
 # Configuration
