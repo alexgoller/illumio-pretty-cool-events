@@ -96,6 +96,18 @@ to Slack, Mail and SNS/SMS.
   + api_token - api_token of user
   + project - the jira project to post to
    
+## PCEServiceNow
+
+This plugin will create an incident in the SNOW incidents table. Currently no other tables
+are configurable, fields are fixed, initial working dummy, more work to do.
+
+### Configuration
+
+* PCEServiceNow:
+  + instance - snow instance
+  + username - SNOW user name
+  + password - password
+   
 ## PCESlack
 
 ### Configuration
@@ -165,8 +177,10 @@ PYTHONWARNINGS="ignore:Unverified HTTPS request"
 
 # TODO
 
-* Dockerfile for easy deployment.
+* Dockerfile for easy deployment - halfway complete
 * throttling of specific event types
+* plugins can indicate what is valid configuration for them (mandatory/optional)
+* config checks
 
 # Ideas
 
