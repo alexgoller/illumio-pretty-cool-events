@@ -1,5 +1,6 @@
 # illumio-pretty-cool-events
 
+![How it works](src/static/how-it-works.png)
 Illumio Pretty Cool Events aims to be a general notification mechanism that polls
 the Illumio Core Events API to get the latest audit events from the Illumio Core PCE.
 
@@ -12,6 +13,10 @@ It will then call plugin actions based on a user configuration (config.yaml).
 Create your config file as specified in the [Configuration](#Configuration) section.
 
     ./pretty-cool-events --config config.yaml
+
+## Running it via docker
+
+A docker image is available via Github Container Registry and can be run via docker or kubernetes.
 
 # Configuration
 
