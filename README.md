@@ -62,7 +62,8 @@ to Slack, Mail and SNS/SMS.
 * PCESyslog  - useful for SaaS instances or PoCs, poll the event API and send to syslog
 * PCEWebhook - send custom webhooks (needs more work)
 * PCEJira    - open a ticket in a jira project (especially useful for provisioning changes quickly)
-* PCETeams   - stub plugin, not functional - send to MS Teams
+* PCETeams   - create a message via Teams Connectorcard
+* PCEServiceNow - create an incident in the ServiceNow incident table
 
 ## PCEStdout
 
