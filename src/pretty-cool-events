@@ -48,7 +48,7 @@ logging.debug("Watchers type: {}".format(type(watchers)))
 
 logging.info("Configured watchers:")
 for watcher in watchers:
-    logging.info("    - {}".format(watcher))
+    logging.info("    Watcher found for: - {}".format(watcher))
 
 ### check plugins
 plugins = load('plugins', subclasses=OutputPlugin)
@@ -100,7 +100,7 @@ def pceWatchers():
 
 @app.route("/config")
 def pceConfig():
-    return str(config)
+    return render_template('wizard.html')
 
 @app.route("/stats")
 def pceStats():
