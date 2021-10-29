@@ -41,6 +41,7 @@ else:
     exit()
 
 config = data['config']
+activePlugins = {}
 
 ### watcher stuff
 watchers = data['watchers']
@@ -48,6 +49,7 @@ logging.debug("Watchers type: {}".format(type(watchers)))
 
 logging.info("Configured watchers:")
 for watcher in watchers:
+    activePlugins[watcher['plugin']] = 1
     logging.info("    Watcher found for: - {}".format(watcher))
 
 ### check plugins
@@ -56,8 +58,11 @@ handlers = plugins.produce()
 
 # setup configs for handlers/plugins
 for handler in handlers:
-    logging.info("Configuring: {}".format(handler.__class__.__name__))
-    handler.config(config['plugin_config'][handler.__class__.__name__])
+    if handler.__class__.__name__ in activePlugins:
+        logging.info("Configuring: {}".format(handler.__class__.__name__))
+        handler.config(config['plugin_config'][handler.__class__.__name__])
+    else:
+        logging.info("No config needed for {}. Ignoring plugin.".format(handler.__class__.__name__))
 
 stats = {'events_received': 0, 'events_matched': 0, 'plugin_stats': {} }
 
