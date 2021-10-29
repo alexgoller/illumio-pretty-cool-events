@@ -40,23 +40,23 @@ else:
     logging.info("Can't open config file: ", args.config)
     exit()
 
-def configCheck(config):
+def configCheck(configData):
     exiting = False
 
     global_values = ['pce', 'pce_api_user', 'pce_api_secret', 'pce_org', 'pce_poll_interval']
 
     for key in global_values:
-        if key in config:
+        if key in data['config']:
             logging.info("[x] Config has mandatory key: {}.".format(key))
         else:
             logging.info("[ ] Config has mandatory key: {}.".format(key))
 
-    if 'plugin_config' in config:
+    if 'plugin_config' in data['config']:
         logging.info("[x] Config has plugin_config section.")
     else:
         logging.info("[ ] Config has plugin_config section.")
 
-    if 'watchers' in config:
+    if 'watchers' in data:
         logging.info("[x] Config has watcher section.")
     else:
         logging.info("[ ] Config has watcher section.")
@@ -68,7 +68,7 @@ config = data['config']
 activePlugins = { }
 
 # do a basic config check
-configCheck(config)
+configCheck(data)
 
 ### watcher stuff
 watchers = data['watchers']
