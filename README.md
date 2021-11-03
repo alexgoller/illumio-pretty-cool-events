@@ -170,9 +170,12 @@ loop
 * be sure to import outputplugin for the basic functionality
 * populate your own methods with code
 
+
     class <YourPlugin>(OutputPlugin):
         def config(self,config):
+            do something here
         def output(self,config):
+            do the action here
 
 # Known issues
 
