@@ -40,6 +40,12 @@ else:
     logging.info("Can't open config file: ", args.config)
     exit()
 
+def createTemplateGlobals():
+    for key in ['pce', 'pce_org']:
+        if key in config and key not in template_globals:
+            template_globals[key] = config[key]
+
+
 def configCheck(configData):
     exiting = False
 
@@ -148,9 +154,13 @@ def main():
     
     current_date = datetime.datetime.now(datetime.timezone.utc).astimezone()
     
+    template_globals = {}
+    createTemplateGlobals()
+
     while True:
         payload = {'timestamp[gte]': current_date}
         r3c = pce.client.get("/api/v2/orgs/{}/events".format(pce.pce_org), params = payload)
+
     
 
         for event in r3c:
