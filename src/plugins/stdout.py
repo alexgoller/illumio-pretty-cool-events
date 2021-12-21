@@ -10,7 +10,7 @@ class PCEStdout(OutputPlugin):
         if 'prepend' in config:
             self.prepend_str = config['prepend']
     
-    def output(self, output, extra_data):
+    def output(self, output, extra_data, template_globals):
         # output function, do output stuff here
         if 'template' in extra_data:
             rtemplate = self.env.get_template(extra_data['template'])

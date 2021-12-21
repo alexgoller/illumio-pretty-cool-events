@@ -18,5 +18,5 @@ class PCEPolicyGit(ExecPlugin):
         else:
             policy_file = 'illumio_core_policy'
 
-    def output(self,output, extra):
+    def output(self,output, extra, template_globals):
         return

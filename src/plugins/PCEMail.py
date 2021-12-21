@@ -29,7 +29,9 @@ class PCEMail(OutputPlugin):
         if 'email_to' in config:
             self.email_to = config['email_to']
     
-    def output(self, output, extra_data):
+    def output(self, output, extra_data, template_globals):
+        logging.debug("Template globals: {}".format(template_globals))
+
         email_to = self.email_to
 
         template = 'default.html'

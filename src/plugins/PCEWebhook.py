@@ -13,7 +13,7 @@ class PCEWebhook(OutputPlugin):
         if 'data' in config:
             self.data = config['data']
 
-    def output(self,output, extra_data):
+    def output(self,output, extra_data, template_globals):
         data = output
         r = requests.post(self.url, data=json.dumps(data), 
                           headers={'Content-Type': 'application/json'})

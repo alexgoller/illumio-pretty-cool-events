@@ -12,7 +12,7 @@ class PCETeams(OutputPlugin):
         if 'template' in config:
             self.template = config['template']
     
-    def output(self, output, extra_data):
+    def output(self, output, extra_data, template_globals):
         logging.debug("PCETeams: data: {}".format(output))
         logging.debug("Extra data: {}".format(extra_data))
         if 'template' in extra_data:

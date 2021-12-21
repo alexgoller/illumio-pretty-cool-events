@@ -21,7 +21,7 @@ class PCESNS(OutputPlugin):
             region_name = self.aws_region_name
         )
 
-    def output(self, output, extra_data):
+    def output(self, output, extra_data, template_globals):
         template = 'default.html'
         if 'template' in extra_data:
             template = extra_data['template']

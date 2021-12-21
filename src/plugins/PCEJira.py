@@ -22,9 +22,10 @@ class PCEJira(OutputPlugin):
         if 'template' in config:
             self.template = config['template']
     
-    def output(self, output, extra_data):
+    def output(self, output, extra_data, template_globals):
         logging.debug("PCEJira: data: {}".format(output))
         logging.debug("Extra data: {}".format(extra_data))
+        logging.debug("Template globals: {}".format(template_globals))
 
         if 'template' in extra_data:
             template = extra_data['template']

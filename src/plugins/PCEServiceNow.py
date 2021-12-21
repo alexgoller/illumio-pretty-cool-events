@@ -16,7 +16,7 @@ class PCEServiceNow(OutputPlugin):
         if 'password' in config:
             self.password = config['password']
     
-    def output(self, output, extra_data):
+    def output(self, output, extra_data, template_globals):
         logging.debug("PCEServiceNow: data: {}".format(output))
         logging.debug("Extra data: {}".format(extra_data))
 
