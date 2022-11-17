@@ -40,10 +40,12 @@ else:
     logging.info("Can't open config file: ", args.config)
     exit()
 
-def createTemplateGlobals():
+def createTemplateGlobals(tg):
     for key in ['pce', 'pce_org']:
-        if key in config and key not in template_globals:
-            template_globals[key] = config[key]
+        if key in config and key not in tg:
+            tg[key] = config[key]
+
+    return tg
 
 
 def configCheck(configData):
@@ -155,13 +157,12 @@ def main():
     current_date = datetime.datetime.now(datetime.timezone.utc).astimezone()
     
     template_globals = {}
-    createTemplateGlobals()
+    template_globals = createTemplateGlobals(template_globals)
+    logging.info("Template globals: {}".format(template_globals))
 
     while True:
         payload = {'timestamp[gte]': current_date}
         r3c = pce.client.get("/api/v2/orgs/{}/events".format(pce.pce_org), params = payload)
-
-    
 
         for event in r3c:
             stats['events_received'] = stats['events_received'] + 1
@@ -219,7 +220,6 @@ def main():
                     else:
                         logging.debug("No event found matching spec: {}".format(key))
 
-    
         # increment run parameter
         run = run+1
         current_date = datetime.datetime.now(datetime.timezone.utc).astimezone()
