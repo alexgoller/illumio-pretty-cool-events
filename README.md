@@ -189,6 +189,7 @@ PYTHONWARNINGS="ignore:Unverified HTTPS request"
 * throttling of specific event types
 * plugins can indicate what is valid configuration for them (mandatory/optional)
 * config checks
+* fix traffic worker
 
 # Ideas
 
