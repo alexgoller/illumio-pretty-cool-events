@@ -17,7 +17,7 @@ from flask import Flask, render_template
 from outputplugin import OutputPlugin
 from straight.plugin import load
 
-logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
 # just --config being used right now
 parser = argparse.ArgumentParser(description='Run the event loop!')
@@ -46,6 +46,8 @@ def createTemplateGlobals(tg):
             tg[key] = config[key]
 
     return tg
+
+    return(template_globals)
 
 
 def configCheck(configData):
@@ -148,6 +150,55 @@ def pceConfig():
 def pceStats():
     return str(stats)
 
+def traffic_task():
+    logging.info("Entering traffic task with poll interval: %s", config['pce_traffic_interval'])
+    run = 0
+    current_date = 0
+    current_date = datetime.datetime.now(datetime.timezone.utc).astimezone()
+
+    traffic_json = { 
+        "start_date": "2021-01-01", 
+        "end_date": "2022-03-31", 
+        "policy_decisions": [ "allowed", "blocked" ], 
+        "max_results": 10000, 
+        "exclude_workloads_from_ip_list_query": True, 
+        "sources": { 
+            "include": [], 
+            "exclude": []
+        },
+        "destinations": { 
+            "include": [], 
+            "exclude": [] 
+        },
+        "sources_destinations_query_op": "and", 
+        "services": {
+            "include": [], 
+            "exclude": []
+        }
+    }
+
+    #  format the date like this "2021-04-16 12:00:00"
+    current_date = datetime.datetime.now(datetime.timezone.utc).astimezone()
+    traffic_json["start_date"] = current_date.strftime("%Y-%m-%d %H:%M:%S")
+
+    # // set end_date to be current date - 14 days
+    end_date = current_date - datetime.timedelta(days=360)
+    traffic_json['end_date'] = end_date.strftime("%Y-%m-%d %H:%M:%S")
+
+    logging.debug("Start date: {}".format(traffic_json['start_date']))
+    logging.debug("End date: {}".format(traffic_json['end_date']))
+
+    query_data = json.dumps(traffic_json)
+
+    while True:
+        logging.debug("Running traffic task")
+        r3c = pce.client.post("/api/v2/orgs/{}/traffic_flows/traffic_analysis_queries".format(pce.pce_org), data=query_data)
+        logging.debug("Rest client result: {}".format(r3c))
+
+        run = run +1
+        current_date = datetime.datetime.now(datetime.timezone.utc).astimezone()
+        time.sleep(config['pce_poll_interval'])
+
 # main loop
 def main():
     logging.info("Entering main poll loop with interval: %s", config['pce_poll_interval'])
@@ -190,7 +241,7 @@ def main():
                             if handler.__class__.__name__ == plugin_name:
                                 logging.info("Routing event {} to {}".format(event['event_type'], plugin_name))
                                 updateMatchStats(event, plugin_name)
-                                handler.output(event, extra_data)
+                                handler.output(event, extra_data, template_globals)
 
             elif event['event_type'] not in watchers:
                 logging.debug("Wildcard branch for event: {}".format(event))
@@ -216,7 +267,7 @@ def main():
                                         stats['events_matched'] = stats['events_matched'] + 1
                                         logging.info("Routing event {} to {}".format(event['event_type'], plugin_name))
                                         updateMatchStats(event, plugin_name)
-                                        handler.output(event, extra_data)
+                                        handler.output(event, extra_data, template_globals)
                     else:
                         logging.debug("No event found matching spec: {}".format(key))
 
@@ -227,6 +278,12 @@ def main():
 
 logging.info("Starting main task.")
 threading.Thread(target=main).start()
+
+
+# start traffic walker if marked in config
+if config['traffic_worker'] == True:
+    logging.info("Starting traffic task")
+    threading.Thread(target=traffic_task).start()
 
 if config['httpd']:
     logging.info("Starting httpd task.")
