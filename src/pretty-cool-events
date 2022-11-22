@@ -213,7 +213,13 @@ def main():
 
     while True:
         payload = {'timestamp[gte]': current_date}
-        r3c = pce.client.get("/api/v2/orgs/{}/events".format(pce.pce_org), params = payload)
+        try:
+            r3c = pce.client.get("/api/v2/orgs/{}/events".format(pce.pce_org), params = payload)
+        except:
+            logging.error("Error getting events from PCE.")
+            logging.error("Sleep and try again.")
+            time.sleep(config['pce_poll_interval'])
+            continue
 
         for event in r3c:
             stats['events_received'] = stats['events_received'] + 1
