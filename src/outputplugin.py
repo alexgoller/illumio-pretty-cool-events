@@ -9,7 +9,8 @@ class OutputPlugin:
     has_template = True
 
     def __init__(self):
-        print("Do the init thing")
+        # print python module name
+        print("{} - init()".format(self.__class__.__name__))
         self.env = Environment(loader=FileSystemLoader('../templates'), autoescape=select_autoescape(['html', 'xml']))
 
     def output(self, output):
