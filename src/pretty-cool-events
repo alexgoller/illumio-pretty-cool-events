@@ -30,7 +30,7 @@ if not args.config:
 
 # check if file exists
 if not os.path.isfile(args.config):
-    logging.warning("Config file {} does not exist. Quitting.".format(args.config))
+    logging.warning("Config file {} does not exist. Use --config <file>. Quitting.".format(args.config))
     exit()
 
 if os.path.exists(args.config):
