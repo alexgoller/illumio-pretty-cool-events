@@ -10,11 +10,11 @@ class OutputPlugin:
 
     def __init__(self):
         # print python module name
-        print("{} - init()".format(self.__class__.__name__))
+        logging.info("{} - init()".format(self.__class__.__name__))
         self.env = Environment(loader=FileSystemLoader('../templates'), autoescape=select_autoescape(['html', 'xml']))
 
     def output(self, output):
-        print("Output something")
+        logging.info("Output something")
 
     def config(self):
-        print("Config something")
+        logging.info("Config something")
