@@ -13,6 +13,7 @@ import json
 import datetime
 import threading
 import regex
+import pprint
 from flask import Flask, render_template
 from outputplugin import OutputPlugin
 from straight.plugin import load
@@ -113,6 +114,9 @@ pce.pce_api_user = config['pce_api_user']
 pce.pce_api_secret = config['pce_api_secret']
 pce.pce_org = config['pce_org']
 pce.client_init()
+
+r3c = pce.client.get("/api/v2/health")
+pprint.pprint(r3c)
 
 
 app = Flask('pretty-cool-events')
