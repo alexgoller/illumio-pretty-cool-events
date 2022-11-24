@@ -17,23 +17,21 @@ from flask import Flask, render_template
 from outputplugin import OutputPlugin
 from straight.plugin import load
 
-logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+FORMAT = '%(asctime)s %(message)s'
+logging.basicConfig(stream=sys.stdout, level=logging.INFO, format=FORMAT)
 
 # just --config being used right now
 parser = argparse.ArgumentParser(description='Run the event loop!')
 parser.add_argument('--config', help='Location of the config file', default = 'config.yml')
 args = parser.parse_args()
 
-if not args.config:
-    logging.warning("No config file given. Quitting")
-    exit()
-
 # check if file exists
 if not os.path.isfile(args.config):
     logging.warning("Config file {} does not exist. Use --config <file>. Quitting.".format(args.config))
+    parser.print_usage()
     exit()
 
-if os.path.exists(args.config):
+if os.path.isfile(args.config):
     with open(args.config, 'r') as stream:
         try:
             logging.info("Reading config file: %s", args.config)
@@ -41,7 +39,8 @@ if os.path.exists(args.config):
         except yaml.YAMLError as exc:
             logging.warning("Config file read error: %s", exc)
 else:
-    logging.info("Can't open config file: ", args.config)
+    logging.warning("Config file {} is not a file.".format(args.config))
+    parser.print_usage()
     exit()
 
 def createTemplateGlobals(tg):
