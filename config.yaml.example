@@ -5,6 +5,7 @@ config:
         pce_api_secret: 42248bc248f8044f0869b46da737b1a32896123e308a086fb38e960f122363d5
         pce_org: 1
         pce_poll_interval: 10
+        pce_traffic_interval: 120
         httpd: false
         httpd_listener_address: 0.0.0.0
         httpd_listener_port: 8443
