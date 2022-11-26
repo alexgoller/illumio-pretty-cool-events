@@ -13,31 +13,35 @@ import json
 import datetime
 import threading
 import regex
+import pprint
 from flask import Flask, render_template
 from outputplugin import OutputPlugin
 from straight.plugin import load
 
-logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+FORMAT = '%(asctime)s %(message)s'
+logging.basicConfig(stream=sys.stdout, level=logging.DEBUG, format=FORMAT)
 
 # just --config being used right now
 parser = argparse.ArgumentParser(description='Run the event loop!')
 parser.add_argument('--config', help='Location of the config file', default = 'config.yml')
 args = parser.parse_args()
 
-if 'config' not in args:
-    logging.warn("No config file given. Quitting")
+# check if file exists
+if not os.path.isfile(args.config):
+    logging.warning("Config file {} does not exist. Use --config <file>. Quitting.".format(args.config))
+    parser.print_usage()
     exit()
 
-
-if os.path.exists(args.config):
+if os.path.isfile(args.config):
     with open(args.config, 'r') as stream:
         try:
             logging.info("Reading config file: %s", args.config)
             data = yaml.load(stream, Loader=SafeLoader)
         except yaml.YAMLError as exc:
-            logging.warn("Config file read error: %s", exc)
+            logging.warning("Config file read error: %s", exc)
 else:
-    logging.info("Can't open config file: ", args.config)
+    logging.warning("Config file {} is not a file.".format(args.config))
+    parser.print_usage()
     exit()
 
 def createTemplateGlobals(tg):
@@ -74,6 +78,7 @@ def configCheck(configData):
     if exiting:
         exit()
 
+# main 
 config = data['config']
 activePlugins = { }
 
@@ -82,14 +87,28 @@ configCheck(data)
 
 ### watcher stuff
 watchers = data['watchers']
+
+# something to store the regexes
+watchers_regexes = {}
+
 logging.debug("Watchers type: {}".format(type(watchers)))
 
 logging.info("Configured watchers:")
 for watcher in watchers:
     logging.info("    Watcher found for: - {}".format(watcher))
     for output in watchers[watcher]:
-        print(output)
+        compiled_regex = False
+        try:
+            compiled_regex = regex.compile(watcher)
+        except :
+            logging.error("Can't compile regex: {}".format(watcher))
+            exit()
+
+        if compiled_regex:
+            watchers_regexes[watcher] = compiled_regex
+
         activePlugins[output['plugin']] = 1
+
 
 ### check plugins
 plugins = load('plugins', subclasses=OutputPlugin)
@@ -111,6 +130,9 @@ pce.pce_api_user = config['pce_api_user']
 pce.pce_api_secret = config['pce_api_secret']
 pce.pce_org = config['pce_org']
 pce.client_init()
+
+r3c = pce.client.get("/api/v2/health")
+pprint.pprint(r3c)
 
 
 app = Flask('pretty-cool-events')
