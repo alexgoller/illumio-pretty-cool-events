@@ -109,6 +109,7 @@ for watcher in watchers:
 
         activePlugins[output['plugin']] = 1
 
+logging.debug("Regexes: {}".format(watchers_regexes))
 
 ### check plugins
 plugins = load('plugins', subclasses=OutputPlugin)
@@ -274,8 +275,10 @@ def main():
             elif event['event_type'] not in watchers:
                 logging.debug("Wildcard branch for event: {}".format(event))
                 evt = event['event_type']
+
                 for key, watcher in watchers.items():
-                    if evt.startswith(key):
+                    if key in watchers_regex and watchers_regex[key].match(evt):
+                        print("Regex match")
                         for w in watchers[key]:
                             if event['status'] == w['status']:
                                 plugin_name = ''
