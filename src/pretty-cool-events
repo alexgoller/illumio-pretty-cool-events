@@ -123,7 +123,7 @@ for handler in handlers:
     else:
         logging.info("No config needed for {}. Ignoring plugin.".format(handler.__class__.__name__))
 
-stats = {'events_received': 0, 'events_matched': 0, 'plugin_stats': {} }
+stats = {'events_received': 0, 'events_matched': 0, 'plugin_stats': {}, 'event_stats': {}}
 
 pce = pce.IllumioPCE()
 pce.pce = config['pce']
@@ -137,6 +137,12 @@ pprint.pprint(r3c)
 
 
 app = Flask('pretty-cool-events')
+
+def updateEventStats(event):
+    if event not in stats['event_stats']:
+        stats['event_stats'][event] = 1
+    else:
+        stats['event_stats'][event] = stats['event_stats'][event] + 1
 
 def updateMatchStats(event, plugin_name):
     if plugin_name not in stats['plugin_stats']:
@@ -246,6 +252,13 @@ def main():
 
         for event in r3c:
             stats['events_received'] = stats['events_received'] + 1
+
+            if 'event_type' in event:
+                updateEventStats(event['event_type'])
+            else:
+                logging.warn("Malformed event! No event_type field.")
+                continue
+
             template = config['default_template']
             if event['event_type'] in watchers:
                 stats['events_matched'] = stats['events_matched'] + 1
@@ -278,7 +291,7 @@ def main():
 
                 for key, watcher in watchers.items():
                     if key in watchers_regexes and watchers_regexes[key].match(evt):
-                        print("Regex match")
+                        logging.debug("Regex match: {} - {}".format(key, evt))
                         for w in watchers[key]:
                             if event['status'] == w['status']:
                                 plugin_name = ''
