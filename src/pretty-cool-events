@@ -249,14 +249,14 @@ def main():
             template = config['default_template']
             if event['event_type'] in watchers:
                 stats['events_matched'] = stats['events_matched'] + 1
-                logging.debug("Matching event type:", event['event_type'])
+                logging.debug("Matching event type: {}".format(event['event_type']))
 
                 for w in watchers[event['event_type']]:
                     if event['status'] == w['status']:
                         logging.debug("Hooray, even the status matches... Now decide what to do with it!")
                         plugin_name = ''
                         if 'plugin' in w:
-                            logging.debug("Found matching plugin:", w['plugin'])
+                            logging.debug("Found matching plugin: {}".format(w['plugin']))
                             plugin_name = w['plugin']
                         if 'template' in w:
                             template = w['template']
@@ -277,7 +277,7 @@ def main():
                 evt = event['event_type']
 
                 for key, watcher in watchers.items():
-                    if key in watchers_regex and watchers_regex[key].match(evt):
+                    if key in watchers_regexes and watchers_regexes[key].match(evt):
                         print("Regex match")
                         for w in watchers[key]:
                             if event['status'] == w['status']:
@@ -285,7 +285,7 @@ def main():
                                 if 'template' in w:
                                     template = w['template']
                                 if 'plugin' in w:
-                                    logging.debug("Found matching plugin:", w['plugin'])
+                                    logging.debug("Found matching plugin: {}".format(w['plugin']))
                                     plugin_name = w['plugin']
                                 if 'extra_data' in w:
                                     logging.debug("Found extra_data.")
@@ -312,7 +312,7 @@ threading.Thread(target=main).start()
 
 
 # start traffic walker if marked in config
-if config['traffic_worker'] == True:
+if 'traffic_worker' in config and config['traffic_worker'] == True:
     logging.info("Starting traffic task")
     threading.Thread(target=traffic_task).start()
 
