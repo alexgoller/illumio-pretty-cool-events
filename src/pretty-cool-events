@@ -150,6 +150,10 @@ def updateMatchStats(event, plugin_name):
     else:
         stats['plugin_stats'][plugin_name] = stats['plugin_stats'][plugin_name] + 1
 
+# this is code for a small embedded web server, not sure if I want to keep it
+# thought is to draft a initial config using flask and give that to the user
+# to edit and then save it to a file
+# also could be used to expose statistics etc.
 def flaskTask():
     if 'httpd_listener_address' in config:
         address = config['httpd_listener_address']
