@@ -14,9 +14,14 @@ Create your config file as specified in the [Configuration](#Configuration) sect
 
     ./pretty-cool-events --config config.yaml
 
-## Running it via docker
 
-A docker image is available via Github Container Registry and can be run via docker or kubernetes.
+## Building the container image
+
+    docker build -t docker-pretty .
+
+## Running the container image
+
+    docker run -v 'type=bind,src=config.yaml,dst=/config/config.yaml' docker-pretty
 
 # Configuration
 
@@ -223,7 +228,6 @@ PYTHONWARNINGS="ignore:Unverified HTTPS request"
 
 # TODO
 
-* Dockerfile for easy deployment - halfway complete
 * throttling of specific event types
 * plugins can indicate what is valid configuration for them (mandatory/optional)
 * config checks
