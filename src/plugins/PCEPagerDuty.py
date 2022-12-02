@@ -10,6 +10,9 @@ class PCEPagerDuty(OutputPlugin):
     # copied from slack
     def config(self, config):
         self.api_key = config['api_key']
+        if 'pd_from' in config:
+            self.pager_duty_from = config['pd_from']
+
         if 'template' in config:
             self.template = config['template']
     
@@ -19,18 +22,15 @@ class PCEPagerDuty(OutputPlugin):
         if 'template' in extra_data:
             template = extra_data['template']
         else:
-            template = 'default.html'
+            template = self.template
 
-        session = APISession(self.api_key)
-        # create incident with pagerduty api
-        # https://v2.developer.pagerduty.com/docs/send-an-event-events-api-v2
-        # https://v2.developer.pagerduty.com/docs/send-an-event-events-api-v2#section-example-requests
-        # https://v2.developer.pagerduty.com/docs/send-an-event-events-api-v2#section-example-responses
-        # https://v2.developer.pagerduty.com/docs/send-an-event-events-api-v2#section-incident-creation
-        session.rput('/incidents', data={ 'incident': { 'type': 'incident', 'title': 'PCE Alert', 'service': { 'id': 'P9ZQZ6C', 'type': 'service_reference' }, 'body': { 'type': 'incident_body', 'details': 'PCE Alert' } } })
+        session = APISession(self.api_key, default_from='alex@ryte.de')
+        # session.rpost('/incidents', data={ 'incident': { 'type': 'incident', 'title': 'PCE Alert', 'priority': { 'id': 'P7I8BQT', 'type': 'priority_reference' }, 'service': { 'id': 'P1535BG', 'type': 'service_reference' }, 'body': { 'type': 'incident_body', 'details': 'Foo' }}} )
 
 
         rtemplate = self.env.get_template(template)
         template_output = rtemplate.render(output)
+
+        session.rpost('/incidents', json={ 'incident': { 'type': 'incident', 'title': 'PCE Alert', 'priority': { 'id': 'P7I8BQT', 'type': 'priority_reference' }, 'service': { 'id': 'P1535BG', 'type': 'service_reference' }, 'body': { 'type': 'incident_body', 'details': template_output }}} )
 
         logging.debug("PCEPagerDuty: output: {}".format(template_output))
