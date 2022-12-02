@@ -64,6 +64,7 @@ to Slack, Mail and SNS/SMS.
 * PCEJira    - open a ticket in a jira project (especially useful for provisioning changes quickly)
 * PCETeams   - create a message via Teams Connectorcard
 * PCEServiceNow - create an incident in the ServiceNow incident table
+* PCEPagerDuty - creates an incident in PagerDuty
 
 ## PCEStdout
 
@@ -137,6 +138,43 @@ This is not in a good state and might be working or not.
   +  syslog_port: syslog port
   +  template: template to use for sending syslog
   +  syslog_cert_file: TLS cert file
+
+## PCESyslog
+
+### Configuration
+
+Some of the below values are IDs used in the PagerDuty system. The plugin right now 
+does not have the capability to resolve those automatically. Therefore i would recommend
+to use the pd command line utility to get the values.  Below is a example call to PagerDuty
+using the command line utility.
+
+    pd incident create  --debug -t "Test" --service "Illumio" --priority=P1 --details "This is just a test"
+
+The command will list the requests and responses and for the right priority and services,
+please find the values (id attribute for the priority to use).
+
+    priority: {
+      id: 'P7I8BQT',
+      type: 'priority',
+      summary: 'P1',
+      self: 'https://api.eu.pagerduty.com/priorities/P7I8BQT',
+      html_url: null,
+      account_id: 'P8TA5X4',
+      color: 'a8171c',
+      created_at: '2022-12-01T17:08:17Z',
+      description: '',
+      name: 'P1',
+      order: 500000000,
+      schema_version: 0,
+      updated_at: '2022-12-01T17:08:17Z'
+    },
+
+* PCEPagerDuty
+  +  template: the jinja2 template to use for the body of the pagerduty incident
+  +  api_key: the API key from your pagerduty instance
+  +  pd_from: the default from mail address used in PagerDuty
+  +  pd_priority: the Priority ID to use in the PagerDuty incident
+  +  pd_service: the Service ID from PagerDuty
 
 # Plugin architecture
 
