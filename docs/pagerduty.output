@@ -1,0 +1,746 @@
+ pd incident create  --debug -t "Test" --service "Illumio" --priority=P1
+[DEBUG] Request: {
+  transitional: {
+    silentJSONParsing: true,
+    forcedJSONParsing: true,
+    clarifyTimeoutError: false
+  },
+  adapter: [Function: httpAdapter],
+  transformRequest: [ [Function: transformRequest] ],
+  transformResponse: [ [Function: transformResponse] ],
+  timeout: 0,
+  xsrfCookieName: 'XSRF-TOKEN',
+  xsrfHeaderName: 'X-XSRF-TOKEN',
+  maxContentLength: -1,
+  maxBodyLength: -1,
+  env: {
+    FormData: [Function: FormData] {
+      LINE_BREAK: '\r\n',
+      DEFAULT_CONTENT_TYPE: 'application/octet-stream'
+    }
+  },
+  validateStatus: [Function: validateStatus],
+  headers: {
+    common: { Accept: 'application/json, text/plain, */*' },
+    delete: {},
+    get: {},
+    head: {},
+    post: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    put: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    patch: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    Accept: 'application/vnd.pagerduty+json;version=2',
+    Authorization: 'Bearer pdeu+_0XBPWQQ_d879afec-d80d-4746-ae80-be6afc14304f',
+    'Content-Type': 'application/json',
+    'User-Agent': 'pagerduty-cli/0.1.6',
+    'X-PagerDuty-Client': 'pagerduty-cli 0.1.6'
+  },
+  method: 'get',
+  baseURL: 'https://api.pagerduty.com',
+  url: 'priorities',
+  params: { total: true, limit: 25 },
+  data: {}
+}
+[DEBUG] OK Response:
+[DEBUG] Response Status: 200
+[DEBUG] Response Data: {
+  priorities: [
+    {
+      id: 'P7I8BQT',
+      type: 'priority',
+      summary: 'P1',
+      self: 'https://api.eu.pagerduty.com/priorities/P7I8BQT',
+      html_url: null,
+      account_id: 'P8TA5X4',
+      color: 'a8171c',
+      created_at: '2022-12-01T18:08:17+01:00',
+      description: '',
+      name: 'P1',
+      order: 500000000,
+      schema_version: 0,
+      updated_at: '2022-12-01T18:08:17+01:00'
+    },
+    {
+      id: 'P48KAB3',
+      type: 'priority',
+      summary: 'P2',
+      self: 'https://api.eu.pagerduty.com/priorities/P48KAB3',
+      html_url: null,
+      account_id: 'P8TA5X4',
+      color: 'eb6016',
+      created_at: '2022-12-01T18:08:17+01:00',
+      description: '',
+      name: 'P2',
+      order: 400000000,
+      schema_version: 0,
+      updated_at: '2022-12-01T18:08:17+01:00'
+    },
+    {
+      id: 'P0ZZZLD',
+      type: 'priority',
+      summary: 'P3',
+      self: 'https://api.eu.pagerduty.com/priorities/P0ZZZLD',
+      html_url: null,
+      account_id: 'P8TA5X4',
+      color: 'f9b406',
+      created_at: '2022-12-01T18:08:17+01:00',
+      description: '',
+      name: 'P3',
+      order: 300000000,
+      schema_version: 0,
+      updated_at: '2022-12-01T18:08:17+01:00'
+    },
+    {
+      id: 'PJVIA8K',
+      type: 'priority',
+      summary: 'P4',
+      self: 'https://api.eu.pagerduty.com/priorities/PJVIA8K',
+      html_url: null,
+      account_id: 'P8TA5X4',
+      color: '555555',
+      created_at: '2022-12-01T18:08:17+01:00',
+      description: '',
+      name: 'P4',
+      order: 200000000,
+      schema_version: 0,
+      updated_at: '2022-12-01T18:08:17+01:00'
+    },
+    {
+      id: 'PFJXZWX',
+      type: 'priority',
+      summary: 'P5',
+      self: 'https://api.eu.pagerduty.com/priorities/PFJXZWX',
+      html_url: null,
+      account_id: 'P8TA5X4',
+      color: '555555',
+      created_at: '2022-12-01T18:08:17+01:00',
+      description: '',
+      name: 'P5',
+      order: 100000000,
+      schema_version: 0,
+      updated_at: '2022-12-01T18:08:17+01:00'
+    }
+  ],
+  limit: 25,
+  offset: 0,
+  more: false,
+  total: null
+}
+[DEBUG] Request: {
+  transitional: {
+    silentJSONParsing: true,
+    forcedJSONParsing: true,
+    clarifyTimeoutError: false
+  },
+  adapter: [Function: httpAdapter],
+  transformRequest: [ [Function: transformRequest] ],
+  transformResponse: [ [Function: transformResponse] ],
+  timeout: 0,
+  xsrfCookieName: 'XSRF-TOKEN',
+  xsrfHeaderName: 'X-XSRF-TOKEN',
+  maxContentLength: -1,
+  maxBodyLength: -1,
+  env: {
+    FormData: [Function: FormData] {
+      LINE_BREAK: '\r\n',
+      DEFAULT_CONTENT_TYPE: 'application/octet-stream'
+    }
+  },
+  validateStatus: [Function: validateStatus],
+  headers: {
+    common: { Accept: 'application/json, text/plain, */*' },
+    delete: {},
+    get: {},
+    head: {},
+    post: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    put: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    patch: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    Accept: 'application/vnd.pagerduty+json;version=2',
+    Authorization: 'Bearer pdeu+_0XBPWQQ_d879afec-d80d-4746-ae80-be6afc14304f',
+    'Content-Type': 'application/json',
+    'User-Agent': 'pagerduty-cli/0.1.6',
+    'X-PagerDuty-Client': 'pagerduty-cli 0.1.6'
+  },
+  method: 'get',
+  baseURL: 'https://api.pagerduty.com',
+  url: 'services',
+  params: { total: true, limit: 25, query: 'Illumio' },
+  data: {}
+}
+[DEBUG] OK Response:
+[DEBUG] Response Status: 200
+[DEBUG] Response Data: {
+  services: [
+    {
+      id: 'P1535BG',
+      name: 'Illumio',
+      description: 'Your first service - describe what this service is monitoring and any information that will help responders.\n' +
+        '\n' +
+        'For example: What is the SLA of this service? Where are the runbooks for this service stored? What tier level is this service?',
+      created_at: '2022-12-01T18:08:28+01:00',
+      updated_at: '2022-12-01T18:08:28+01:00',
+      status: 'active',
+      teams: [],
+      alert_creation: 'create_alerts_and_incidents',
+      addons: [],
+      scheduled_actions: [],
+      support_hours: null,
+      last_incident_timestamp: '2022-12-01T18:20:13Z',
+      escalation_policy: {
+        id: 'PAADCMC',
+        type: 'escalation_policy_reference',
+        summary: 'Default',
+        self: 'https://api.eu.pagerduty.com/escalation_policies/PAADCMC',
+        html_url: 'https://ryte-testing.eu.pagerduty.com/escalation_policies/PAADCMC'
+      },
+      incident_urgency_rule: { type: 'constant', urgency: 'high' },
+      acknowledgement_timeout: null,
+      auto_resolve_timeout: null,
+      alert_grouping: null,
+      alert_grouping_timeout: null,
+      alert_grouping_parameters: { type: null, config: null },
+      integrations: [],
+      response_play: null,
+      type: 'service',
+      summary: 'Illumio',
+      self: 'https://api.eu.pagerduty.com/services/P1535BG',
+      html_url: 'https://ryte-testing.eu.pagerduty.com/service-directory/P1535BG'
+    }
+  ],
+  limit: 25,
+  offset: 0,
+  total: 1,
+  more: false
+}
+[DEBUG] Request: {
+  transitional: {
+    silentJSONParsing: true,
+    forcedJSONParsing: true,
+    clarifyTimeoutError: false
+  },
+  adapter: [Function: httpAdapter],
+  transformRequest: [ [Function: transformRequest] ],
+  transformResponse: [ [Function: transformResponse] ],
+  timeout: 0,
+  xsrfCookieName: 'XSRF-TOKEN',
+  xsrfHeaderName: 'X-XSRF-TOKEN',
+  maxContentLength: -1,
+  maxBodyLength: -1,
+  env: {
+    FormData: [Function: FormData] {
+      LINE_BREAK: '\r\n',
+      DEFAULT_CONTENT_TYPE: 'application/octet-stream'
+    }
+  },
+  validateStatus: [Function: validateStatus],
+  headers: {
+    common: { Accept: 'application/json, text/plain, */*' },
+    delete: {},
+    get: {},
+    head: {},
+    post: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    put: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    patch: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    Accept: 'application/vnd.pagerduty+json;version=2',
+    Authorization: 'Bearer pdeu+_0XBPWQQ_d879afec-d80d-4746-ae80-be6afc14304f',
+    'Content-Type': 'application/json',
+    'User-Agent': 'pagerduty-cli/0.1.6',
+    'X-PagerDuty-Client': 'pagerduty-cli 0.1.6'
+  },
+  method: 'post',
+  baseURL: 'https://api.pagerduty.com',
+  url: 'incidents',
+  params: {},
+  data: {
+    incident: {
+      type: 'incident',
+      title: 'Test',
+      service: { type: 'service_reference', id: 'P1535BG' },
+      priority: { type: 'priority_reference', id: 'P7I8BQT' }
+    }
+  }
+}
+[DEBUG] OK Response:
+[DEBUG] Response Status: 201
+[DEBUG] Response Data: {
+  incident: {
+    incident_number: 3,
+    title: 'Test',
+    description: 'Test',
+    created_at: '2022-12-01T18:22:45Z',
+    status: 'triggered',
+    incident_key: '64ccf6f6b57c4317bc85cab5e28e473b',
+    service: {
+      id: 'P1535BG',
+      type: 'service_reference',
+      summary: 'Illumio',
+      self: 'https://api.eu.pagerduty.com/services/P1535BG',
+      html_url: 'https://ryte-testing.eu.pagerduty.com/service-directory/P1535BG'
+    },
+    assignments: [
+      {
+        at: '2022-12-01T18:22:45Z',
+        assignee: {
+          id: 'PQAMIJ9',
+          type: 'user_reference',
+          summary: 'Alex Goller',
+          self: 'https://api.eu.pagerduty.com/users/PQAMIJ9',
+          html_url: 'https://ryte-testing.eu.pagerduty.com/users/PQAMIJ9'
+        }
+      }
+    ],
+    assigned_via: 'escalation_policy',
+    last_status_change_at: '2022-12-01T18:22:45Z',
+    first_trigger_log_entry: {
+      id: 'RP5U3GS2W0SD4VZL99QJZVU6NT',
+      type: 'trigger_log_entry_reference',
+      summary: 'Triggered through the website.',
+      self: 'https://api.eu.pagerduty.com/log_entries/RP5U3GS2W0SD4VZL99QJZVU6NT',
+      html_url: 'https://ryte-testing.eu.pagerduty.com/incidents/Q1K8G6MFBH16R7/log_entries/RP5U3GS2W0SD4VZL99QJZVU6NT'
+    },
+    alert_counts: { all: 0, triggered: 0, resolved: 0 },
+    is_mergeable: true,
+    escalation_policy: {
+      id: 'PAADCMC',
+      type: 'escalation_policy_reference',
+      summary: 'Default',
+      self: 'https://api.eu.pagerduty.com/escalation_policies/PAADCMC',
+      html_url: 'https://ryte-testing.eu.pagerduty.com/escalation_policies/PAADCMC'
+    },
+    teams: [],
+    impacted_services: [
+      {
+        id: 'P1535BG',
+        type: 'service_reference',
+        summary: 'Illumio',
+        self: 'https://api.eu.pagerduty.com/services/P1535BG',
+        html_url: 'https://ryte-testing.eu.pagerduty.com/service-directory/P1535BG'
+      }
+    ],
+    pending_actions: [],
+    acknowledgements: [],
+    basic_alert_grouping: null,
+    alert_grouping: null,
+    last_status_change_by: {
+      id: 'P1535BG',
+      type: 'service_reference',
+      summary: 'Illumio',
+      self: 'https://api.eu.pagerduty.com/services/P1535BG',
+      html_url: 'https://ryte-testing.eu.pagerduty.com/service-directory/P1535BG'
+    },
+    priority: {
+      id: 'P7I8BQT',
+      type: 'priority',
+      summary: 'P1',
+      self: 'https://api.eu.pagerduty.com/priorities/P7I8BQT',
+      html_url: null,
+      account_id: 'P8TA5X4',
+      color: 'a8171c',
+      created_at: '2022-12-01T17:08:17Z',
+      description: '',
+      name: 'P1',
+      order: 500000000,
+      schema_version: 0,
+      updated_at: '2022-12-01T17:08:17Z'
+    },
+    incidents_responders: [],
+    responder_requests: [],
+    subscriber_requests: [],
+    urgency: 'high',
+    id: 'Q1K8G6MFBH16R7',
+    type: 'incident',
+    summary: '[#3] Test',
+    self: 'https://api.eu.pagerduty.com/incidents/Q1K8G6MFBH16R7',
+    html_url: 'https://ryte-testing.eu.pagerduty.com/incidents/Q1K8G6MFBH16R7'
+  }
+}
+Creating PagerDuty incident... done
+Your new incident is at https://ryte-testing.eu.pagerduty.com/incidents/Q1K8G6MFBH16R7
+❯
+❯ pd incident create  --debug -t "Test" --service "Illumio" --priority=P1 --help
+Create a PagerDuty Incident
+
+USAGE
+  $ pd incident create -t <value> [-h] [--debug] [-b <value>] [--token <value>] [-S <value>] [--service_id <value>] [-E <value>]
+    [--escalation_policy_id <value>] [-U <value>] [--user_id <value>] [-d <value>] [-u high|low] [-P <value>] [-k <value>] [-F <value>] [-o] [-p]
+
+FLAGS
+  -E, --escalation_policy=<value>  The name of the escalation policy to assign the incident to
+  -F, --from=<value>               Login email of a PD user account for the "From:" header. Use only with legacy API tokens.
+  -P, --priority=<value>           Incident priority
+  -S, --service=<value>            The name of the service to create the incident in
+  -U, --user=<value>               The email of a user to assign the incident to
+  -b, --useauth=<value>            Use the saved REST API token with this alias
+  -d, --details=<value>            Incident details
+  -h, --help                       Show CLI help.
+  -k, --key=<value>                Incident key
+  -o, --open                       Open the new incident in the browser
+  -p, --pipe                       Print the incident ID only to stdout, for use with pipes.
+  -t, --title=<value>              (required) Incident title
+  -u, --urgency=<option>           Incident urgency
+                                   <options: high|low>
+  --debug                          Print REST API call debug logs
+  --escalation_policy_id=<value>   The ID of the escalation policy to assign the incident to
+  --service_id=<value>             The ID of the service to create the incident in
+  --token=<value>                  Ignore the saved configuration and use this token
+  --user_id=<value>                The ID of a user to assign the incident to
+
+DESCRIPTION
+  Create a PagerDuty Incident
+
+❯ pd incident create  --debug -t "Test" --service "Illumio" --priority=P1 --details "This is just a test"
+[DEBUG] Request: {
+  transitional: {
+    silentJSONParsing: true,
+    forcedJSONParsing: true,
+    clarifyTimeoutError: false
+  },
+  adapter: [Function: httpAdapter],
+  transformRequest: [ [Function: transformRequest] ],
+  transformResponse: [ [Function: transformResponse] ],
+  timeout: 0,
+  xsrfCookieName: 'XSRF-TOKEN',
+  xsrfHeaderName: 'X-XSRF-TOKEN',
+  maxContentLength: -1,
+  maxBodyLength: -1,
+  env: {
+    FormData: [Function: FormData] {
+      LINE_BREAK: '\r\n',
+      DEFAULT_CONTENT_TYPE: 'application/octet-stream'
+    }
+  },
+  validateStatus: [Function: validateStatus],
+  headers: {
+    common: { Accept: 'application/json, text/plain, */*' },
+    delete: {},
+    get: {},
+    head: {},
+    post: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    put: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    patch: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    Accept: 'application/vnd.pagerduty+json;version=2',
+    Authorization: 'Bearer pdeu+_0XBPWQQ_d879afec-d80d-4746-ae80-be6afc14304f',
+    'Content-Type': 'application/json',
+    'User-Agent': 'pagerduty-cli/0.1.6',
+    'X-PagerDuty-Client': 'pagerduty-cli 0.1.6'
+  },
+  method: 'get',
+  baseURL: 'https://api.pagerduty.com',
+  url: 'priorities',
+  params: { total: true, limit: 25 },
+  data: {}
+}
+[DEBUG] OK Response:
+[DEBUG] Response Status: 200
+[DEBUG] Response Data: {
+  priorities: [
+    {
+      id: 'P7I8BQT',
+      type: 'priority',
+      summary: 'P1',
+      self: 'https://api.eu.pagerduty.com/priorities/P7I8BQT',
+      html_url: null,
+      account_id: 'P8TA5X4',
+      color: 'a8171c',
+      created_at: '2022-12-01T18:08:17+01:00',
+      description: '',
+      name: 'P1',
+      order: 500000000,
+      schema_version: 0,
+      updated_at: '2022-12-01T18:08:17+01:00'
+    },
+    {
+      id: 'P48KAB3',
+      type: 'priority',
+      summary: 'P2',
+      self: 'https://api.eu.pagerduty.com/priorities/P48KAB3',
+      html_url: null,
+      account_id: 'P8TA5X4',
+      color: 'eb6016',
+      created_at: '2022-12-01T18:08:17+01:00',
+      description: '',
+      name: 'P2',
+      order: 400000000,
+      schema_version: 0,
+      updated_at: '2022-12-01T18:08:17+01:00'
+    },
+    {
+      id: 'P0ZZZLD',
+      type: 'priority',
+      summary: 'P3',
+      self: 'https://api.eu.pagerduty.com/priorities/P0ZZZLD',
+      html_url: null,
+      account_id: 'P8TA5X4',
+      color: 'f9b406',
+      created_at: '2022-12-01T18:08:17+01:00',
+      description: '',
+      name: 'P3',
+      order: 300000000,
+      schema_version: 0,
+      updated_at: '2022-12-01T18:08:17+01:00'
+    },
+    {
+      id: 'PJVIA8K',
+      type: 'priority',
+      summary: 'P4',
+      self: 'https://api.eu.pagerduty.com/priorities/PJVIA8K',
+      html_url: null,
+      account_id: 'P8TA5X4',
+      color: '555555',
+      created_at: '2022-12-01T18:08:17+01:00',
+      description: '',
+      name: 'P4',
+      order: 200000000,
+      schema_version: 0,
+      updated_at: '2022-12-01T18:08:17+01:00'
+    },
+    {
+      id: 'PFJXZWX',
+      type: 'priority',
+      summary: 'P5',
+      self: 'https://api.eu.pagerduty.com/priorities/PFJXZWX',
+      html_url: null,
+      account_id: 'P8TA5X4',
+      color: '555555',
+      created_at: '2022-12-01T18:08:17+01:00',
+      description: '',
+      name: 'P5',
+      order: 100000000,
+      schema_version: 0,
+      updated_at: '2022-12-01T18:08:17+01:00'
+    }
+  ],
+  limit: 25,
+  offset: 0,
+  more: false,
+  total: null
+}
+[DEBUG] Request: {
+  transitional: {
+    silentJSONParsing: true,
+    forcedJSONParsing: true,
+    clarifyTimeoutError: false
+  },
+  adapter: [Function: httpAdapter],
+  transformRequest: [ [Function: transformRequest] ],
+  transformResponse: [ [Function: transformResponse] ],
+  timeout: 0,
+  xsrfCookieName: 'XSRF-TOKEN',
+  xsrfHeaderName: 'X-XSRF-TOKEN',
+  maxContentLength: -1,
+  maxBodyLength: -1,
+  env: {
+    FormData: [Function: FormData] {
+      LINE_BREAK: '\r\n',
+      DEFAULT_CONTENT_TYPE: 'application/octet-stream'
+    }
+  },
+  validateStatus: [Function: validateStatus],
+  headers: {
+    common: { Accept: 'application/json, text/plain, */*' },
+    delete: {},
+    get: {},
+    head: {},
+    post: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    put: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    patch: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    Accept: 'application/vnd.pagerduty+json;version=2',
+    Authorization: 'Bearer pdeu+_0XBPWQQ_d879afec-d80d-4746-ae80-be6afc14304f',
+    'Content-Type': 'application/json',
+    'User-Agent': 'pagerduty-cli/0.1.6',
+    'X-PagerDuty-Client': 'pagerduty-cli 0.1.6'
+  },
+  method: 'get',
+  baseURL: 'https://api.pagerduty.com',
+  url: 'services',
+  params: { total: true, limit: 25, query: 'Illumio' },
+  data: {}
+}
+[DEBUG] OK Response:
+[DEBUG] Response Status: 200
+[DEBUG] Response Data: {
+  services: [
+    {
+      id: 'P1535BG',
+      name: 'Illumio',
+      description: 'Your first service - describe what this service is monitoring and any information that will help responders.\n' +
+        '\n' +
+        'For example: What is the SLA of this service? Where are the runbooks for this service stored? What tier level is this service?',
+      created_at: '2022-12-01T18:08:28+01:00',
+      updated_at: '2022-12-01T18:08:28+01:00',
+      status: 'active',
+      teams: [],
+      alert_creation: 'create_alerts_and_incidents',
+      addons: [],
+      scheduled_actions: [],
+      support_hours: null,
+      last_incident_timestamp: '2022-12-01T18:22:45Z',
+      escalation_policy: {
+        id: 'PAADCMC',
+        type: 'escalation_policy_reference',
+        summary: 'Default',
+        self: 'https://api.eu.pagerduty.com/escalation_policies/PAADCMC',
+        html_url: 'https://ryte-testing.eu.pagerduty.com/escalation_policies/PAADCMC'
+      },
+      incident_urgency_rule: { type: 'constant', urgency: 'high' },
+      acknowledgement_timeout: null,
+      auto_resolve_timeout: null,
+      alert_grouping: null,
+      alert_grouping_timeout: null,
+      alert_grouping_parameters: { type: null, config: null },
+      integrations: [],
+      response_play: null,
+      type: 'service',
+      summary: 'Illumio',
+      self: 'https://api.eu.pagerduty.com/services/P1535BG',
+      html_url: 'https://ryte-testing.eu.pagerduty.com/service-directory/P1535BG'
+    }
+  ],
+  limit: 25,
+  offset: 0,
+  total: 1,
+  more: false
+}
+[DEBUG] Request: {
+  transitional: {
+    silentJSONParsing: true,
+    forcedJSONParsing: true,
+    clarifyTimeoutError: false
+  },
+  adapter: [Function: httpAdapter],
+  transformRequest: [ [Function: transformRequest] ],
+  transformResponse: [ [Function: transformResponse] ],
+  timeout: 0,
+  xsrfCookieName: 'XSRF-TOKEN',
+  xsrfHeaderName: 'X-XSRF-TOKEN',
+  maxContentLength: -1,
+  maxBodyLength: -1,
+  env: {
+    FormData: [Function: FormData] {
+      LINE_BREAK: '\r\n',
+      DEFAULT_CONTENT_TYPE: 'application/octet-stream'
+    }
+  },
+  validateStatus: [Function: validateStatus],
+  headers: {
+    common: { Accept: 'application/json, text/plain, */*' },
+    delete: {},
+    get: {},
+    head: {},
+    post: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    put: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    patch: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    Accept: 'application/vnd.pagerduty+json;version=2',
+    Authorization: 'Bearer pdeu+_0XBPWQQ_d879afec-d80d-4746-ae80-be6afc14304f',
+    'Content-Type': 'application/json',
+    'User-Agent': 'pagerduty-cli/0.1.6',
+    'X-PagerDuty-Client': 'pagerduty-cli 0.1.6'
+  },
+  method: 'post',
+  baseURL: 'https://api.pagerduty.com',
+  url: 'incidents',
+  params: {},
+  data: {
+    incident: {
+      type: 'incident',
+      title: 'Test',
+      service: { type: 'service_reference', id: 'P1535BG' },
+      body: { type: 'incident_body', details: 'This is just a test' },
+      priority: { type: 'priority_reference', id: 'P7I8BQT' }
+    }
+  }
+}
+[DEBUG] OK Response:
+[DEBUG] Response Status: 201
+[DEBUG] Response Data: {
+  incident: {
+    incident_number: 4,
+    title: 'Test',
+    description: 'Test',
+    created_at: '2022-12-01T18:25:37Z',
+    status: 'triggered',
+    incident_key: '7683490155c24701ac8275ab1ec46cf9',
+    service: {
+      id: 'P1535BG',
+      type: 'service_reference',
+      summary: 'Illumio',
+      self: 'https://api.eu.pagerduty.com/services/P1535BG',
+      html_url: 'https://ryte-testing.eu.pagerduty.com/service-directory/P1535BG'
+    },
+    assignments: [
+      {
+        at: '2022-12-01T18:25:37Z',
+        assignee: {
+          id: 'PQAMIJ9',
+          type: 'user_reference',
+          summary: 'Alex Goller',
+          self: 'https://api.eu.pagerduty.com/users/PQAMIJ9',
+          html_url: 'https://ryte-testing.eu.pagerduty.com/users/PQAMIJ9'
+        }
+      }
+    ],
+    assigned_via: 'escalation_policy',
+    last_status_change_at: '2022-12-01T18:25:37Z',
+    first_trigger_log_entry: {
+      id: 'R375MO2ZC4Y43B60OL0GKUOZ13',
+      type: 'trigger_log_entry_reference',
+      summary: 'Triggered through the website.',
+      self: 'https://api.eu.pagerduty.com/log_entries/R375MO2ZC4Y43B60OL0GKUOZ13',
+      html_url: 'https://ryte-testing.eu.pagerduty.com/incidents/Q0Y9QRDKJQJ6XU/log_entries/R375MO2ZC4Y43B60OL0GKUOZ13'
+    },
+    alert_counts: { all: 0, triggered: 0, resolved: 0 },
+    is_mergeable: true,
+    escalation_policy: {
+      id: 'PAADCMC',
+      type: 'escalation_policy_reference',
+      summary: 'Default',
+      self: 'https://api.eu.pagerduty.com/escalation_policies/PAADCMC',
+      html_url: 'https://ryte-testing.eu.pagerduty.com/escalation_policies/PAADCMC'
+    },
+    teams: [],
+    impacted_services: [
+      {
+        id: 'P1535BG',
+        type: 'service_reference',
+        summary: 'Illumio',
+        self: 'https://api.eu.pagerduty.com/services/P1535BG',
+        html_url: 'https://ryte-testing.eu.pagerduty.com/service-directory/P1535BG'
+      }
+    ],
+    pending_actions: [],
+    acknowledgements: [],
+    basic_alert_grouping: null,
+    alert_grouping: null,
+    last_status_change_by: {
+      id: 'P1535BG',
+      type: 'service_reference',
+      summary: 'Illumio',
+      self: 'https://api.eu.pagerduty.com/services/P1535BG',
+      html_url: 'https://ryte-testing.eu.pagerduty.com/service-directory/P1535BG'
+    },
+    priority: {
+      id: 'P7I8BQT',
+      type: 'priority',
+      summary: 'P1',
+      self: 'https://api.eu.pagerduty.com/priorities/P7I8BQT',
+      html_url: null,
+      account_id: 'P8TA5X4',
+      color: 'a8171c',
+      created_at: '2022-12-01T17:08:17Z',
+      description: '',
+      name: 'P1',
+      order: 500000000,
+      schema_version: 0,
+      updated_at: '2022-12-01T17:08:17Z'
+    },
+    incidents_responders: [],
+    responder_requests: [],
+    subscriber_requests: [],
+    urgency: 'high',
+    id: 'Q0Y9QRDKJQJ6XU',
+    type: 'incident',
+    summary: '[#4] Test',
+    self: 'https://api.eu.pagerduty.com/incidents/Q0Y9QRDKJQJ6XU',
+    html_url: 'https://ryte-testing.eu.pagerduty.com/incidents/Q0Y9QRDKJQJ6XU',
+    body: { details: 'This is just a test' }
+  }
+}
