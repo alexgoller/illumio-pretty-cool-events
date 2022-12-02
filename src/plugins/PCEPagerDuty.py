@@ -40,6 +40,24 @@ class PCEPagerDuty(OutputPlugin):
         rtemplate = self.env.get_template(template)
         template_output = rtemplate.render(output)
 
-        session.rpost('/incidents', json={ 'incident': { 'type': 'incident', 'title': 'PCE Alert', 'priority': { 'id': self.pd_priority, 'type': 'priority_reference' }, 'service': { 'id': self.pd_service, 'type': 'service_reference' }, 'body': { 'type': 'incident_body', 'details': template_output }}} )
+        try:
+            session.rpost('/incidents', 
+                        json={ 'incident': 
+                              { 'type': 'incident', 'title': 'PCE Alert', 
+                               'priority': 
+                                { 
+                                    'id': self.pd_priority, 'type': 'priority_reference'
+                                }, 
+                               'service': { 
+                                   'id': self.pd_service, 'type': 'service_reference' 
+                               }, 
+                               'body': 
+                               { 
+                                   'type': 'incident_body', 'details': template_output 
+                               }
+                             }} )
+
+        except pdpyras.PDClientError as e:
+            logging.info("PCEPagerDuty error: {}".format(e))
 
         logging.debug("PCEPagerDuty: output: {}".format(template_output))
