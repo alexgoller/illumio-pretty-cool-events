@@ -139,7 +139,7 @@ This is not in a good state and might be working or not.
   +  template: template to use for sending syslog
   +  syslog_cert_file: TLS cert file
 
-## PCESyslog
+## PCEPagerDuty
 
 ### Configuration
 
