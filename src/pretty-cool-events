@@ -14,6 +14,7 @@ import datetime
 import threading
 import regex
 import pprint
+import jsonpickle
 from flask import Flask, render_template
 from outputplugin import OutputPlugin
 from straight.plugin import load
@@ -132,8 +133,16 @@ pce.pce_api_secret = config['pce_api_secret']
 pce.pce_org = config['pce_org']
 pce.client_init()
 
-r3c = pce.client.get("/api/v2/health")
-pprint.pprint(r3c)
+r3c = pce.client.get("/api/v2/health", raw_response=True)
+
+if r3c.status_code == 200:
+    logging.info("Connected to PCE: {}".format(config['pce']))
+else:
+    logging.warning("Can't connect to PCE: {}".format(config['pce']))
+    # just for debugging
+    obj = jsonpickle.encode(r3c)
+    pprint.pprint(obj)
+    exit()
 
 
 app = Flask('pretty-cool-events')
