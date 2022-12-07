@@ -40,6 +40,12 @@ config:
                         syslog_port: 10514
                         template: 'syslog.tmpl'
                         syslog_cert_file: ''
+                PCEPagerDuty:
+                  template: sms.tmpl
+                  api_key: # yourAPIkey
+                  pd_from: # your email as in PagerDuty
+                  pd_priority: # PD priority reference
+                  pd_service: # PD service reference
 
 
 watchers:
