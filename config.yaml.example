@@ -46,6 +46,9 @@ config:
                   pd_from: # your email as in PagerDuty
                   pd_priority: # PD priority reference
                   pd_service: # PD service reference
+                PCEFile:
+                  template: 'default-json.html' # default tempplate to use for logging
+                  logfile: foo.log # the logfile
 
 
 watchers:

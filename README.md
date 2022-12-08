@@ -70,6 +70,7 @@ to Slack, Mail and SNS/SMS.
 * PCETeams   - create a message via Teams Connectorcard
 * PCEServiceNow - create an incident in the ServiceNow incident table
 * PCEPagerDuty - creates an incident in PagerDuty
+* PCEFile    - log PCE events to a logfile
 
 ## PCEStdout
 
@@ -180,6 +181,17 @@ please find the values (id attribute for the priority to use).
   +  pd_from: the default from mail address used in PagerDuty
   +  pd_priority: the Priority ID to use in the PagerDuty incident
   +  pd_service: the Service ID from PagerDuty
+
+
+## PCEFile
+
+Plugin to write events to a filesystem file.
+
+### Configuration
+
+* PCEFile
+  +  template: template to use for PCEFile events
+  +  logfile: path to a logfile to log to
 
 # Plugin architecture
 

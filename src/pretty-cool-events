@@ -32,8 +32,7 @@ if not os.path.isfile(args.config):
     logging.warning("Config file {} does not exist. Use --config <file>. Quitting.".format(args.config))
     parser.print_usage()
     exit()
-
-if os.path.isfile(args.config):
+elif os.path.isfile(args.config):
     with open(args.config, 'r') as stream:
         try:
             logging.info("Reading config file: %s", args.config)
@@ -324,6 +323,9 @@ def main():
                                         stats['events_matched'] = stats['events_matched'] + 1
                                         logging.info("Routing event {} to {}".format(event['event_type'], plugin_name))
                                         updateMatchStats(event, plugin_name)
+                                        logging.debug("Event: {}".format(event))
+                                        logging.debug("extra_data: {}".format(extra_data))
+                                        logging.debug("template_globals: {}".format(template_globals))
                                         handler.output(event, extra_data, template_globals)
                     else:
                         logging.debug("No event found matching spec: {}".format(key))
