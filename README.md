@@ -218,6 +218,7 @@ loop
 * default-slacks.html - a slack BlockKit template to make for fancier slack notifications.
 * sms.tmpl - Send SMS with the event and a link to the Illumio Core PCE UI
 * email.tmpl - standard email template
+* default-json.tmpl - including sample json output
 
 # How to write your own plugin
 
