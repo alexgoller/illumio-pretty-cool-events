@@ -1,7 +1,2 @@
-
-PCE {{ pce_fqdn }} created a new event: {{ event_type }}
-{% if created_by.user is defined %}
-Event created by {{ created_by.user.username }}
-{{ created_by | json_filter | safe }}
-{% endif %}
+{{ timestamp | json_filter | safe }}, S: {{ severity | json_filter | safe }}, Status: {{ status | json_filter | safe }}, {{ href | json_filter | safe }}, {{ created_by | json_filter | safe }}, {{ event_type | json_filter | safe }}, {{ action | json_filter | safe }}
 

@@ -23,8 +23,7 @@ class PCEFile(OutputPlugin):
 
         try:
             with open(self.logfile, "a+") as logfile:
-                print(pprint.pprint(output))
-                print("Plugin output handler reached!")
+                logging.info("In PCEFile output handler")
                 logfile.write(rtemplate.render(output))
         except Exception:
                 logging.info("Error writing to file: {}".format(self.logfile))
