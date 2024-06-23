@@ -263,6 +263,7 @@ def main():
             continue
 
         for event in r3c:
+            logging.info("Event received: {}".format(json.dumps(event)))
             stats['events_received'] = stats['events_received'] + 1
 
             if 'event_type' in event:
