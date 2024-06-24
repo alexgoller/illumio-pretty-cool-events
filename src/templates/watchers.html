@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}Watcher Configuration - Illumio Pretty Cool Events{% endblock %}
+
+{% block content %}
+<h1>Watcher Configuration</h1>
+
+<form method="POST">
+    <div id="watchers">
+        {% for pattern, watchers in config.watchers.items() %}
+            <div class="card mb-3 watcher-card">
+                <div class="card-header">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <select class="form-control event-type-selector" name="event_type[]">
+                                <option value="custom" {% if '.' not in pattern and '*' not in pattern %}selected{% endif %}>Custom</option>
+                                {% for event_type in event_types %}
+                                    <option value="{{ event_type }}" {% if pattern == event_type %}selected{% endif %}>{{ event_type }}</option>
+                                {% endfor %}
+                                {% for main_type in event_types | map('split', '.') | map('first') | unique %}
+                                    <option value="{{ main_type }}.*" {% if pattern == main_type ~ '.*' %}selected{% endif %}>{{ main_type }}.* (Wildcard)</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <input type="text" class="form-control custom-pattern" name="watcher_pattern[]" value="{{ pattern }}" placeholder="Custom Event Pattern" {% if '.' in pattern or '*' in pattern %}style="display: none;"{% endif %}>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% for watcher in watchers %}
+                        <div class="watcher-item mb-3">
+                            <div class="row">
+                                <div class="col">
+                                    <select class="form-select" name="watcher_status[]">
+                                        <option value="success" {% if watcher.status == 'success' %}selected{% endif %}>Success</option>
+                                        <option value="failure" {% if watcher.status == 'failure' %}selected{% endif %}>Failure</option>
+                                    </select>
+                                </div>
+                                <div class="col">
+                                    <select class="form-select" name="watcher_severity[]">
+                                        <option value="info" {% if watcher.severity == 'info' %}selected{% endif %}>Info</option>
+                                        <option value="warning" {% if watcher.severity == 'warning' %}selected{% endif %}>Warning</option>
+                                        <option value="error" {% if watcher.severity == 'error' %}selected{% endif %}>Error</option>
+                                    </select>
+                                </div>
+                                <div class="col">
+                                    <select class="form-select" name="watcher_plugin[]">
+                                        {% for plugin in config.plugin_config.keys() %}
+                                            <option value="{{ plugin }}" {% if watcher.plugin == plugin %}selected{% endif %}>{{ plugin }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="mt-2">
+                                <h5>Extra Data</h5>
+                                <div class="row mb-2">
+                                    <div class="col">
+                                        <input type="text" class="form-control" name="watcher_template[]" value="{{ watcher.extra_data.template }}" placeholder="Template">
+                                    </div>
+                                </div>
+                                {% for key, value in watcher.extra_data.items() %}
+                                    {% if key != 'template' %}
+                                        <div class="row mb-2">
+                                            <div class="col">
+                                                <input type="text" class="form-control" name="extra_data_key[]" value="{{ key }}" placeholder="Key">
+                                            </div>
+                                            <div class="col">
+                                                <input type="text" class="form-control" name="extra_data_value[]" value="{{ value }}" placeholder="Value">
+                                            </div>
+                                        </div>
+                                    {% endif %}
+                                {% endfor %}
+                                <button type="button" class="btn btn-sm btn-secondary add-extra-data">Add Extra Data</button>
+                            </div>
+                        </div>
+                    {% endfor %}
+                    <button type="button" class="btn btn-sm btn-secondary add-watcher">Add Watcher</button>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+    <button type="button" class="btn btn-secondary mb-3" id="add-watcher-pattern">Add Watcher Pattern</button>
+    <button type="submit" class="btn btn-primary">Save Watcher Configuration</button>
+</form>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    function setupEventTypeSelector(element) {
+        const customPattern = element.closest('.card-header').querySelector('.custom-pattern');
+        element.addEventListener('change', function() {
+            if (this.value === 'custom') {
+                customPattern.style.display = 'block';
+                customPattern.value = '';
+            } else {
+                customPattern.style.display = 'none';
+                customPattern.value = this.value;
+            }
+        });
+    }
+
+    document.querySelectorAll('.event-type-selector').forEach(setupEventTypeSelector);
+
+    document.getElementById('add-watcher-pattern').addEventListener('click', function() {
+        const watchersDiv = document.getElementById('watchers');
+        const newWatcherCard = `
+            <div class="card mb-3 watcher-card">
+                <div class="card-header">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <select class="form-control event-type-selector" name="event_type[]">
+                                <option value="custom">Custom</option>
+                                ${event_types.map(type => `<option value="${type}">${type}</option>`).join('')}
+                                ${[...new Set(event_types.map(type => type.split('.')[0]))].map(mainType => `<option value="${mainType}.*">${mainType}.* (Wildcard)</option>`).join('')}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <input type="text" class="form-control custom-pattern" name="watcher_pattern[]" placeholder="Custom Event Pattern" style="display: none;">
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <button type="button" class="btn btn-sm btn-secondary add-watcher">Add Watcher</button>
+                </div>
+            </div>
+        `;
+        watchersDiv.insertAdjacentHTML('beforeend', newWatcherCard);
+        setupEventTypeSelector(watchersDiv.lastElementChild.querySelector('.event-type-selector'));
+    });
+
+    // ... (keep the existing JavaScript for adding watchers and extra data)
+});
+</script>
+{% endblock %}

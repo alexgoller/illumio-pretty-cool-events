@@ -132,3 +132,5 @@ dmypy.json
 config.yaml
 config.yaml.old
 event.sample
+config.yaml.bak
+src/config.yml

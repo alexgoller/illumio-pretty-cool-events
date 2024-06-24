@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Configuration - Illumio Pretty Cool Events{% endblock %}
+
+{% block content %}
+<h1>PCE Configuration</h1>
+
+<form method="POST" action="{{ url_for('pceConfig') }}">
+    <h2>Global Settings</h2>
+    <div class="mb-3">
+        <label for="pce" class="form-label">PCE URL:</label>
+        <input type="text" class="form-control" id="pce" name="pce" value="{{ config.pce }}">
+    </div>
+    <div class="mb-3">
+        <label for="pce_api_user" class="form-label">PCE API User:</label>
+        <input type="text" class="form-control" id="pce_api_user" name="pce_api_user" value="{{ config.pce_api_user }}">
+    </div>
+    <div class="mb-3">
+        <label for="pce_api_secret" class="form-label">PCE API Secret:</label>
+        <input type="password" class="form-control" id="pce_api_secret" name="pce_api_secret" value="{{ config.pce_api_secret }}">
+    </div>
+    <div class="mb-3">
+        <label for="pce_org" class="form-label">PCE Organization:</label>
+        <input type="text" class="form-control" id="pce_org" name="pce_org" value="{{ config.pce_org }}">
+    </div>
+    <div class="mb-3">
+        <label for="pce_poll_interval" class="form-label">PCE Poll Interval:</label>
+        <input type="number" class="form-control" id="pce_poll_interval" name="pce_poll_interval" value="{{ config.pce_poll_interval }}">
+    </div>
+    <div class="mb-3">
+        <label for="pce_traffic_interval" class="form-label">PCE Traffic Interval:</label>
+        <input type="number" class="form-control" id="pce_traffic_interval" name="pce_traffic_interval" value="{{ config.pce_traffic_interval }}">
+    </div>
+    <div class="mb-3 form-check">
+        <input type="checkbox" class="form-check-input" id="httpd" name="httpd" {% if config.httpd %}checked{% endif %}>
+        <label class="form-check-label" for="httpd">Enable HTTPD</label>
+    </div>
+    <div class="mb-3 form-check">
+        <input type="checkbox" class="form-check-input" id="traffic_worker" name="traffic_worker" {% if config.traffic_worker %}checked{% endif %}>
+        <label class="form-check-label" for="traffic_worker">Enable Traffic Worker</label>
+    </div>
+
+    <h2>Plugin Configurations</h2>
+    {% for plugin, plugin_config in config.plugin_config.items() %}
+    <div class="card mb-3">
+        <div class="card-header">
+            <h3>{{ plugin }}</h3>
+        </div>
+        <div class="card-body">
+            {% for key, value in plugin_config.items() %}
+            <div class="mb-3">
+                <label for="{{ plugin }}_{{ key }}" class="form-label">{{ key }}:</label>
+                {% if value is string %}
+                <input type="text" class="form-control" id="{{ plugin }}_{{ key }}" name="plugin_config[{{ plugin }}][{{ key }}]" value="{{ value }}">
+                {% elif value is number %}
+                <input type="number" class="form-control" id="{{ plugin }}_{{ key }}" name="plugin_config[{{ plugin }}][{{ key }}]" value="{{ value }}">
+                {% elif value is boolean %}
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="{{ plugin }}_{{ key }}" name="plugin_config[{{ plugin }}][{{ key }}]" {% if value %}checked{% endif %}>
+                    <label class="form-check-label" for="{{ plugin }}_{{ key }}">{{ key }}</label>
+                </div>
+                {% else %}
+                <textarea class="form-control" id="{{ plugin }}_{{ key }}" name="plugin_config[{{ plugin }}][{{ key }}]">{{ value | tojson }}</textarea>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+
+    <button type="submit" class="btn btn-primary">Save Configuration</button>
+</form>
+
+<a href="{{ url_for('watchersConfig') }}" class="btn btn-secondary mt-3">Manage Watchers</a>
+
+{% endblock %}

@@ -15,9 +15,11 @@ import threading
 import regex
 import pprint
 import jsonpickle
-from flask import Flask, render_template
+from flask import Flask, render_template, request, redirect, url_for, flash
 from outputplugin import OutputPlugin
 from straight.plugin import load
+from jinja2 import Environment
+
 
 FORMAT = '%(asctime)s %(message)s'
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG, format=FORMAT)
@@ -44,6 +46,9 @@ else:
     parser.print_usage()
     exit()
 
+def split_filter(value, delimiter=None):
+    return value.split(delimiter)
+
 def createTemplateGlobals(tg):
     for key in ['pce', 'pce_org']:
         if key in config and key not in tg:
@@ -52,6 +57,13 @@ def createTemplateGlobals(tg):
     return tg
 
     return(template_globals)
+
+
+
+def load_event_types():
+    with open('event_types.yaml', 'r') as file:
+        data = yaml.safe_load(file)
+    return data['event_types']
 
 
 def configCheck(configData):
@@ -79,6 +91,9 @@ def configCheck(configData):
         exit()
 
 # main 
+# Load event types when the application starts
+event_types = load_event_types()
+
 config = data['config']
 activePlugins = { }
 
@@ -145,6 +160,11 @@ else:
 
 
 app = Flask('pretty-cool-events')
+app.template_folder = '/Users/alex.goller/git/illumio-pretty-cool-events/src/templates'
+app.secret_key = os.environ.get('FLASK_SECRET_KEY') or os.urandom(24)
+app.jinja_env.filters['split'] = split_filter
+
+
 
 def updateEventStats(event):
     if event not in stats['event_stats']:
@@ -179,13 +199,115 @@ def flaskTask():
 def pceMain():
     return render_template('index.html', stats=stats, config=config)
 
-@app.route("/watchers")
-def pceWatchers():
-    return str(watchers)
+@app.route("/watchers", methods=['GET', 'POST'])
+def watchersConfig():
+    global config, event_types, watchers
+    config['watchers'] = watchers
 
-@app.route("/config")
+    print(f"Watchers: {watchers}")
+
+    if 'watchers' not in config:
+        config['watchers'] = {}
+
+    if request.method == 'POST':
+        # Handle form submission for watchers
+        new_watchers = {}
+        patterns = request.form.getlist('watcher_pattern[]')
+        statuses = request.form.getlist('watcher_status[]')
+        plugins = request.form.getlist('watcher_plugin[]')
+        severities = request.form.getlist('watcher_severity[]')
+        templates = request.form.getlist('watcher_template[]')
+        extra_data_keys = request.form.getlist('extra_data_key[]')
+        extra_data_values = request.form.getlist('extra_data_value[]')
+
+        for i, pattern in enumerate(patterns):
+            if pattern not in new_watchers:
+                new_watchers[pattern] = []
+
+            watcher = {
+                'status': statuses[i],
+                'severity': severities[i],
+                'plugin': plugins[i],
+                'extra_data': {
+                    'template': templates[i]
+                }
+            }
+
+            # Add additional extra data
+            extra_data_start = i * 10  # Assuming max 10 extra data fields per watcher
+            extra_data_end = extra_data_start + 10
+            for j in range(extra_data_start, extra_data_end):
+                if j < len(extra_data_keys) and extra_data_keys[j]:
+                    watcher['extra_data'][extra_data_keys[j]] = extra_data_values[j]
+
+            new_watchers[pattern].append(watcher)
+
+        config['watchers'] = new_watchers
+        # Save the updated config to file
+        with open('config.yaml', 'w') as f:
+            yaml.dump(config, f)
+
+        flash('Watcher configuration updated successfully', 'success')
+        return redirect(url_for('watchersConfig'))
+
+    print (config['watchers'])
+    return render_template('watchers.html', config=config, event_types=event_types)
+
+@app.route("/config", methods=['GET', 'POST'])
 def pceConfig():
-    return render_template('wizard.html')
+    global config, watchers, event_types  # Assuming 'config' is your global configuration dictionary
+
+    # Initialize watchers if it doesn't exist
+    if 'watchers' not in config:
+        config['watchers'] = {}
+
+    if request.method == 'POST':
+        # Update global settings
+        config['pce'] = request.form.get('pce')
+        config['pce_api_user'] = request.form.get('pce_api_user')
+        config['pce_api_secret'] = request.form.get('pce_api_secret')
+        config['pce_org'] = request.form.get('pce_org')
+        config['pce_poll_interval'] = int(request.form.get('pce_poll_interval'))
+        config['pce_traffic_interval'] = int(request.form.get('pce_traffic_interval'))
+        config['httpd'] = 'httpd' in request.form
+        config['traffic_worker'] = 'traffic_worker' in request.form
+
+        # Update plugin configurations
+        for plugin, plugin_config in config['plugin_config'].items():
+            for key in plugin_config:
+                form_key = f"plugin_config[{plugin}][{key}]"
+                if form_key in request.form:
+                    value = request.form[form_key]
+                    # Convert value to appropriate type (you might need to enhance this)
+                    if isinstance(plugin_config[key], bool):
+                        value = value.lower() == 'on'
+                    elif isinstance(plugin_config[key], int):
+                        value = int(value)
+                    config['plugin_config'][plugin][key] = value
+
+        # Save updated config to YAML file
+        with open('config.yml', 'w') as f:
+            yaml.dump({'config': config}, f)
+
+        flash('Configuration updated successfully', 'success')
+        return redirect(url_for('pceConfig'))
+    
+    return render_template('config.html', config=config)
+
+@app.route("/config/watcher/add", methods=['POST'])
+def add_watcher():
+    # Logic to add a new watcher
+    new_watcher = process_watcher_form(request.form)
+    add_watcher_to_config(new_watcher)
+    flash('New watcher added', 'success')
+    return redirect(url_for('pceConfig'))
+
+@app.route("/config/watcher/delete/<watcher_id>", methods=['POST'])
+def delete_watcher(watcher_id):
+    # Logic to delete a watcher
+    remove_watcher_from_config(watcher_id)
+    flash('Watcher removed', 'success')
+    return redirect(url_for('pceConfig'))
 
 @app.route("/stats")
 def pceStats():
