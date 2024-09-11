@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+
+{% block title %}Statistics - Illumio Pretty Cool Events{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">Statistics Dashboard</h1>
+
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Event Overview</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-6">
+                        <h2 class="text-primary">{{ stats.events_received }}</h2>
+                        <p>Events Received</p>
+                    </div>
+                    <div class="col-6">
+                        <h2 class="text-success">{{ stats.events_matched }}</h2>
+                        <p>Events Matched</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Plugin Activity</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="pluginChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Event Type Distribution</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="eventTypeChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Event Timeline</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="eventTimelineChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/moment@2.29.1/moment.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-moment@1.0.0/dist/chartjs-adapter-moment.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var pluginStats = {{ plugin_stats_json | safe }};
+    var eventStats = {{ event_stats_json | safe }};
+    
+    // Plugin Activity Chart
+    var pluginCtx = document.getElementById('pluginChart').getContext('2d');
+    new Chart(pluginCtx, {
+        type: 'doughnut',
+        data: {
+            labels: Object.keys(pluginStats),
+            datasets: [{
+                data: Object.values(pluginStats),
+                backgroundColor: [
+                    'rgba(255, 99, 132, 0.8)',
+                    'rgba(54, 162, 235, 0.8)',
+                    'rgba(255, 206, 86, 0.8)',
+                    'rgba(75, 192, 192, 0.8)',
+                    'rgba(153, 102, 255, 0.8)',
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            legend: {
+                position: 'right',
+            },
+            title: {
+                display: true,
+                text: 'Plugin Activity'
+            }
+        }
+    });
+    
+    // Event Type Distribution Chart
+    var eventCtx = document.getElementById('eventTypeChart').getContext('2d');
+    new Chart(eventCtx, {
+        type: 'bar',
+        data: {
+            labels: Object.keys(eventStats),
+            datasets: [{
+                label: 'Event Count',
+                data: Object.values(eventStats),
+                backgroundColor: 'rgba(75, 192, 192, 0.8)',
+            }]
+        },
+        options: {
+            responsive: true,
+            legend: {
+                display: false
+            },
+            title: {
+                display: true,
+                text: 'Event Type Distribution'
+            },
+            scales: {
+                yAxes: [{
+                    ticks: {
+                        beginAtZero: true
+                    }
+                }]
+            }
+        }
+    });
+    
+    // Event Timeline Scatter Plot
+    var timelineData = {{ event_timeline_json | safe }};
+    var eventTypes = [...new Set(timelineData.map(item => item.event_type))];
+    var colorScale = d3.scaleOrdinal(d3.schemeCategory10).domain(eventTypes);
+
+    var timelineCtx = document.getElementById('eventTimelineChart').getContext('2d');
+    new Chart(timelineCtx, {
+        type: 'scatter',
+        data: {
+            datasets: [{
+                data: timelineData.map(item => ({
+                    x: item.timestamp,
+                    y: item.event_type
+                })),
+                backgroundColor: timelineData.map(item => colorScale(item.event_type))
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                x: {
+                    type: 'time',
+                    time: {
+                        unit: 'minute'
+                    },
+                    title: {
+                        display: true,
+                        text: 'Time'
+                    }
+                },
+                y: {
+                    type: 'category',
+                    labels: eventTypes,
+                    title: {
+                        display: true,
+                        text: 'Event Type'
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `${context.raw.y} at ${moment(context.raw.x).format('YYYY-MM-DD HH:mm:ss')}`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}
