@@ -10,7 +10,6 @@ import logging
 import sys
 import pce
 import json
-import datetime
 import threading
 import regex
 import pprint
@@ -20,6 +19,7 @@ from outputplugin import OutputPlugin
 from straight.plugin import load
 from jinja2 import Environment
 from illumio import *
+from datetime import datetime, timedelta, timezone
 
 
 FORMAT = '%(asctime)s %(message)s'
@@ -40,6 +40,7 @@ elif os.path.isfile(args.config):
         try:
             logging.info("Reading config file: %s", args.config)
             data = yaml.load(stream, Loader=SafeLoader)
+            logging.info("Loaded watchers: %s", json.dumps(data['watchers'], indent=2))
         except yaml.YAMLError as exc:
             logging.warning("Config file read error: %s", exc)
 else:
@@ -56,8 +57,6 @@ def createTemplateGlobals(tg):
             tg[key] = config[key]
 
     return tg
-
-    return(template_globals)
 
 
 
@@ -103,16 +102,16 @@ configCheck(data)
 
 ### watcher stuff
 watchers = data['watchers']
+logging.debug("Watchers: %s", json.dumps(watchers, indent=2))
 
 # something to store the regexes
 watchers_regexes = {}
-
-logging.debug("Watchers type: {}".format(type(watchers)))
 
 logging.info("Configured watchers:")
 for watcher in watchers:
     logging.info("    Watcher found for: - {}".format(watcher))
     for output in watchers[watcher]:
+        logging.debug(f'        Watcher: {output}')
         compiled_regex = False
         try:
             compiled_regex = regex.compile(watcher)
@@ -126,6 +125,7 @@ for watcher in watchers:
         activePlugins[output['plugin']] = 1
 
 logging.debug("Regexes: {}".format(watchers_regexes))
+logging.debug(f'Found active plugins: {activePlugins}')
 
 ### check plugins
 plugins = load('plugins', subclasses=OutputPlugin)
@@ -139,7 +139,7 @@ for handler in handlers:
     else:
         logging.info("No config needed for {}. Ignoring plugin.".format(handler.__class__.__name__))
 
-stats = {'events_received': 0, 'events_matched': 0, 'plugin_stats': {}, 'event_stats': {}}
+stats = {'events_received': 0, 'events_matched': 0, 'plugin_stats': {}, 'event_stats': {}, 'event_timeline': []}
 
 pce = pce.IllumioPCE()
 pce.pce = config['pce']
@@ -164,8 +164,6 @@ app = Flask('pretty-cool-events')
 app.template_folder = '/Users/alex.goller/git/illumio-pretty-cool-events/src/templates'
 app.secret_key = os.environ.get('FLASK_SECRET_KEY') or os.urandom(24)
 app.jinja_env.filters['split'] = split_filter
-
-
 
 def updateEventStats(event):
     if event not in stats['event_stats']:
@@ -202,10 +200,14 @@ def pceMain():
 
 @app.route("/watchers", methods=['GET', 'POST'])
 def watchersConfig():
-    global config
+    global config, watchers
 
     if 'watchers' not in config:
+        logging.info("No watchers in config, creating empty watchers.")
         config['watchers'] = {}
+
+    logging.debug("Watchers in config: %s", json.dumps(config['watchers'], indent=2))
+    logging.debug("Watchers in watchers: %s", json.dumps(watchers, indent=2))
 
     if request.method == 'POST':
         new_watchers = {}
@@ -246,6 +248,8 @@ def watchersConfig():
             else:
                 config['watchers'][pattern] = watchers
 
+        logging.debug("Updated watchers: %s", json.dumps(config['watchers'], indent=2))
+
         # Create a timestamped backup
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_filename = f'config_backup_{timestamp}.yaml'
@@ -259,11 +263,17 @@ def watchersConfig():
         # Save the updated config
         with open('config.yaml', 'w') as f:
             yaml.dump(config, f)
+        logging.info("Config saved successfully")
+
+        # Verify the saved config
+        with open('config.yaml', 'r') as f:
+            saved_config = yaml.safe_load(f)
+        logging.debug("Saved watchers: %s", json.dumps(saved_config.get('watchers', {}), indent=2))
 
         flash('Watcher configuration updated successfully', 'success')
         return redirect(url_for('watchersConfig'))
 
-    return render_template('watchers.html', config=config, event_types=event_types)
+    return render_template('watchers.html', config=config, watchers=watchers, event_types=event_types)
 
 @app.route("/config", methods=['GET', 'POST'])
 def pceConfig():
@@ -331,17 +341,19 @@ def statistics():
     # Convert any complex data structures to JSON for easy handling in JavaScript
     event_stats_json = json.dumps(stats['event_stats'])
     plugin_stats_json = json.dumps(stats['plugin_stats'])
+    event_timeline_json = json.dumps(stats.get('event_timeline', []))
     
     return render_template('statistics.html', 
                            stats=stats, 
                            event_stats_json=event_stats_json,
-                           plugin_stats_json=plugin_stats_json)
+                           plugin_stats_json=plugin_stats_json,
+                           event_timeline_json=event_timeline_json)
 
 def traffic_task():
     logging.info("Entering traffic task with poll interval: %s", config['pce_traffic_interval'])
     run = 0
     current_date = 0
-    current_date = datetime.datetime.now(datetime.timezone.utc).astimezone()
+    current_date = datetime.now(timezone.utc)
 
     traffic_json = { 
         "start_date": "2021-01-01", 
@@ -365,7 +377,7 @@ def traffic_task():
     }
 
     #  format the date like this "2021-04-16 12:00:00"
-    current_date = datetime.datetime.now(datetime.timezone.utc).astimezone()
+    current_date = datetime.now(timezone.utc)
     traffic_json["start_date"] = current_date.strftime("%Y-%m-%d %H:%M:%S")
 
     # // set end_date to be current date - 14 days
@@ -383,7 +395,7 @@ def traffic_task():
         logging.debug("Rest client result: {}".format(r3c))
 
         run = run +1
-        current_date = datetime.datetime.now(datetime.timezone.utc).astimezone()
+        current_date = datetime.now(timezone.utc).astimezone()
         time.sleep(config['pce_poll_interval'])
 
 # main loop
@@ -392,12 +404,16 @@ def main():
     run = 0
     current_date = 0
     
-    current_date = datetime.datetime.now(datetime.timezone.utc).astimezone()
+    current_date = datetime.now(timezone.utc).astimezone()
     
     template_globals = {}
     template_globals = createTemplateGlobals(template_globals)
     logging.info("Template globals: {}".format(template_globals))
 
+    # Initialize the event_timeline in the stats dictionary
+    if 'event_timeline' not in stats:
+        stats['event_timeline'] = []
+    logging.debug("Starting main loop")
     while True:
         payload = {'timestamp[gte]': current_date}
         try:
@@ -414,6 +430,16 @@ def main():
 
             if 'event_type' in event:
                 updateEventStats(event['event_type'])
+                
+                # Add event to the timeline
+                stats['event_timeline'].append({
+                    'timestamp': event.get('timestamp', datetime.now().isoformat()),
+                    'event_type': event['event_type']
+                })
+                
+                # Limit the timeline to the last 1000 events to prevent excessive memory usage
+                if len(stats['event_timeline']) > 1000:
+                    stats['event_timeline'] = stats['event_timeline'][-1000:]
             else:
                 logging.warn("Malformed event! No event_type field.")
                 continue
@@ -479,7 +505,7 @@ def main():
 
         # increment run parameter
         run = run+1
-        current_date = datetime.datetime.now(datetime.timezone.utc).astimezone()
+        current_date = datetime.now(timezone.utc).astimezone()
         time.sleep(config['pce_poll_interval'])
 
 logging.info("Starting main task.")
