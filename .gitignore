@@ -134,3 +134,4 @@ config.yaml.old
 event.sample
 config.yaml.bak
 src/config.yml
+.gpt-runner/*
