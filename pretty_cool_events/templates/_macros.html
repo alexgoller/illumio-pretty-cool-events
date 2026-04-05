@@ -1,0 +1,255 @@
+{#
+  Reusable macros for rendering PCE events.
+
+  Usage in any template:
+    {% from "_macros.html" import event_badge, event_header, event_action,
+       event_changes, event_notifications, event_full, event_json %}
+#}
+
+
+{# Status badge: success/failure/null #}
+{% macro event_badge(value, kind="status") -%}
+  {%- if kind == "status" -%}
+    {%- if value == "success" -%}
+      <span style="background:#198754;color:#fff;padding:2px 8px;border-radius:4px;font-size:12px;">success</span>
+    {%- elif value == "failure" -%}
+      <span style="background:#dc3545;color:#fff;padding:2px 8px;border-radius:4px;font-size:12px;">failure</span>
+    {%- else -%}
+      <span style="background:#6c757d;color:#fff;padding:2px 8px;border-radius:4px;font-size:12px;">{{ value or "null" }}</span>
+    {%- endif -%}
+  {%- elif kind == "severity" -%}
+    {%- if value == "err" -%}
+      <span style="background:#dc3545;color:#fff;padding:2px 8px;border-radius:4px;font-size:12px;">error</span>
+    {%- elif value == "warning" -%}
+      <span style="background:#ffc107;color:#000;padding:2px 8px;border-radius:4px;font-size:12px;">warning</span>
+    {%- else -%}
+      <span style="background:#0dcaf0;color:#000;padding:2px 8px;border-radius:4px;font-size:12px;">info</span>
+    {%- endif -%}
+  {%- endif -%}
+{%- endmacro %}
+
+
+{# Who created the event #}
+{% macro event_creator(created_by) -%}
+  {%- if created_by is mapping -%}
+    {%- if created_by.user is defined -%}
+      {{ created_by.user.username | default("unknown user") }}
+    {%- elif created_by.system is defined -%}
+      system
+    {%- elif created_by.agent is defined -%}
+      agent
+    {%- elif created_by.container_cluster is defined -%}
+      container cluster
+    {%- else -%}
+      unknown
+    {%- endif -%}
+  {%- else -%}
+    unknown
+  {%- endif -%}
+{%- endmacro %}
+
+
+{# Header section: event type, time, status, severity, creator #}
+{% macro event_header(ev) %}
+<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+  <tr>
+    <td style="padding:12px 16px;background:#1a1a2e;color:#fff;border-radius:8px 8px 0 0;">
+      <strong style="font-size:18px;">{{ ev.event_type }}</strong>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:12px 16px;background:#f8f9fa;border:1px solid #dee2e6;">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td width="25%"><strong>Time</strong><br>{{ ev.timestamp }}</td>
+          <td width="25%"><strong>Status</strong><br>{{ event_badge(ev.status, "status") }}</td>
+          <td width="25%"><strong>Severity</strong><br>{{ event_badge(ev.severity, "severity") }}</td>
+          <td width="25%"><strong>Created By</strong><br>{{ event_creator(ev.created_by) }}</td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+{% endmacro %}
+
+
+{# Action details: API endpoint, method, HTTP status, source IP #}
+{% macro event_action(action) %}
+{% if action is mapping %}
+<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:8px;">
+  <tr>
+    <td style="padding:8px 16px;background:#e9ecef;font-weight:bold;border:1px solid #dee2e6;">
+      API Action
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:12px 16px;border:1px solid #dee2e6;">
+      <table width="100%" cellpadding="4" cellspacing="0">
+        {% if action.api_method and action.api_endpoint %}
+        <tr>
+          <td width="30%" style="color:#6c757d;">Endpoint</td>
+          <td><code style="background:#f1f3f5;padding:2px 6px;border-radius:3px;">{{ action.api_method }} {{ action.api_endpoint }}</code></td>
+        </tr>
+        {% endif %}
+        {% if action.http_status_code %}
+        <tr>
+          <td style="color:#6c757d;">HTTP Status</td>
+          <td>{{ action.http_status_code }}</td>
+        </tr>
+        {% endif %}
+        {% if action.src_ip and action.src_ip != "FILTERED" %}
+        <tr>
+          <td style="color:#6c757d;">Source IP</td>
+          <td>{{ action.src_ip }}</td>
+        </tr>
+        {% endif %}
+        {% if action.info is mapping %}
+        {% for key, val in action.info.items() %}
+        <tr>
+          <td style="color:#6c757d;">{{ key }}</td>
+          <td>{{ val }}</td>
+        </tr>
+        {% endfor %}
+        {% endif %}
+      </table>
+    </td>
+  </tr>
+</table>
+{% endif %}
+{% endmacro %}
+
+
+{# Resource changes with before/after diffs #}
+{% macro event_changes(resource_changes) %}
+{% if resource_changes %}
+<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:8px;">
+  <tr>
+    <td style="padding:8px 16px;background:#e9ecef;font-weight:bold;border:1px solid #dee2e6;">
+      Resource Changes ({{ resource_changes | length }})
+    </td>
+  </tr>
+  {% for rc in resource_changes %}
+  <tr>
+    <td style="padding:12px 16px;border:1px solid #dee2e6;">
+      <div style="margin-bottom:6px;">
+        {% if rc.change_type == "delete" %}
+          <span style="background:#dc3545;color:#fff;padding:1px 6px;border-radius:3px;font-size:11px;">DELETE</span>
+        {% elif rc.change_type == "create" %}
+          <span style="background:#198754;color:#fff;padding:1px 6px;border-radius:3px;font-size:11px;">CREATE</span>
+        {% else %}
+          <span style="background:#0d6efd;color:#fff;padding:1px 6px;border-radius:3px;font-size:11px;">UPDATE</span>
+        {% endif %}
+
+        {# Identify the resource type and name #}
+        {% if rc.resource is mapping %}
+          {% for res_type, res_data in rc.resource.items() %}
+            <strong>{{ res_type }}</strong>
+            {% if res_data is mapping and res_data.name %}
+              &mdash; {{ res_data.name }}
+            {% endif %}
+            {% if res_data is mapping and res_data.href %}
+              <br><code style="font-size:11px;color:#6c757d;">{{ res_data.href }}</code>
+            {% endif %}
+          {% endfor %}
+        {% endif %}
+      </div>
+
+      {# Before / after diff table #}
+      {% if rc.changes is mapping %}
+      <table width="100%" cellpadding="4" cellspacing="0" style="font-size:13px;border-collapse:collapse;">
+        <tr style="background:#f1f3f5;">
+          <th style="text-align:left;padding:4px 8px;border:1px solid #dee2e6;" width="30%">Field</th>
+          <th style="text-align:left;padding:4px 8px;border:1px solid #dee2e6;" width="35%">Before</th>
+          <th style="text-align:left;padding:4px 8px;border:1px solid #dee2e6;" width="35%">After</th>
+        </tr>
+        {% for field, diff in rc.changes.items() %}
+        <tr>
+          <td style="padding:4px 8px;border:1px solid #dee2e6;font-weight:bold;">{{ field }}</td>
+          <td style="padding:4px 8px;border:1px solid #dee2e6;color:#dc3545;">
+            {% if diff is mapping %}{{ diff.before if diff.before is not none else "null" }}{% else %}{{ diff }}{% endif %}
+          </td>
+          <td style="padding:4px 8px;border:1px solid #dee2e6;color:#198754;">
+            {% if diff is mapping %}{{ diff.after if diff.after is not none else "null" }}{% else %}{{ diff }}{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+{% endmacro %}
+
+
+{# Notifications #}
+{% macro event_notifications(notifications) %}
+{% if notifications %}
+<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:8px;">
+  <tr>
+    <td style="padding:8px 16px;background:#e9ecef;font-weight:bold;border:1px solid #dee2e6;">
+      Notifications ({{ notifications | length }})
+    </td>
+  </tr>
+  {% for n in notifications %}
+  <tr>
+    <td style="padding:12px 16px;border:1px solid #dee2e6;">
+      <strong>{{ n.notification_type }}</strong>
+      {% if n.info is mapping %}
+      <table width="100%" cellpadding="4" cellspacing="0" style="font-size:13px;margin-top:4px;">
+        {% for key, val in n.info.items() %}
+        <tr>
+          <td width="30%" style="color:#6c757d;">{{ key }}</td>
+          <td>
+            {% if val is mapping %}
+              {% for k2, v2 in val.items() %}{{ k2 }}: {{ v2 }}{% if not loop.last %}, {% endif %}{% endfor %}
+            {% elif val is iterable and val is not string %}
+              {{ val | join(", ") }}
+            {% else %}
+              {{ val }}
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+{% endmacro %}
+
+
+{# Raw JSON dump of the full event #}
+{% macro event_json(ev) %}
+<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:8px;">
+  <tr>
+    <td style="padding:8px 16px;background:#e9ecef;font-weight:bold;border:1px solid #dee2e6;">
+      Raw Event JSON
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:12px 16px;border:1px solid #dee2e6;">
+      <pre style="background:#1a1a2e;color:#e0e0e0;padding:12px;border-radius:4px;overflow-x:auto;font-size:12px;margin:0;">{{ ev | json_filter }}</pre>
+    </td>
+  </tr>
+</table>
+{% endmacro %}
+
+
+{# ===== FULL EVENT RENDER =====
+   One macro to rule them all. Renders the complete event with every section.
+   Usage: {{ event_full(event) }}
+   Or for a simpler context: {{ event_full(event, show_json=False) }}
+#}
+{% macro event_full(ev, show_json=True) %}
+{{ event_header(ev) }}
+{{ event_action(ev.action) }}
+{{ event_changes(ev.resource_changes) }}
+{{ event_notifications(ev.notifications) }}
+{% if show_json %}
+{{ event_json(ev) }}
+{% endif %}
+{% endmacro %}
