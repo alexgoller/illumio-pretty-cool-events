@@ -156,16 +156,20 @@
   </div>
 </div>
 
-<!-- Existing traffic watchers -->
-<div class="card mt-4 d-none" id="tw-card">
-  <div class="card-header d-flex justify-content-between">
-    <span><i class="bi bi-eye"></i> Traffic Watchers</span>
-    <span class="badge bg-primary" id="tw-count">0</span>
+<!-- Traffic watchers (always visible) -->
+<div class="card mt-4" id="tw-card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-eye"></i> Traffic Watchers <span class="badge bg-primary ms-1" id="tw-count">0</span></span>
+    <button class="btn btn-sm btn-primary" onclick="openTrafficWatcherBuilderBlank()">
+      <i class="bi bi-plus-circle"></i> New Traffic Watcher
+    </button>
   </div>
-  <div class="card-body p-0">
+  <div class="card-body p-0" id="tw-table-wrap">
     <table class="table table-sm mb-0">
       <thead><tr><th>Name</th><th>Sources</th><th>Destinations</th><th>Services</th><th>Decisions</th><th>Plugin</th><th></th></tr></thead>
-      <tbody id="tw-body"></tbody>
+      <tbody id="tw-body">
+        <tr id="tw-empty"><td colspan="7" class="text-center text-muted p-3">No traffic watchers configured. Click <strong>New Traffic Watcher</strong> or click the <i class="bi bi-eye"></i> button on a flow result.</td></tr>
+      </tbody>
     </table>
   </div>
 </div>
@@ -532,6 +536,26 @@ function showFlow(idx) {
 }
 
 // ---- Traffic watcher builder ----
+function openTrafficWatcherBuilderBlank() {
+  document.getElementById('tw-preview').innerHTML =
+    '<span class="text-muted">Define a new traffic watcher from scratch. Use label expressions like <code>env=prod, bu=banking</code>.</span>';
+  document.getElementById('tw-name').value = '';
+  document.getElementById('tw-src-include').value = '';
+  document.getElementById('tw-src-exclude').value = '';
+  document.getElementById('tw-dst-include').value = '';
+  document.getElementById('tw-dst-exclude').value = '';
+  document.getElementById('tw-svc-include').value = '';
+  document.getElementById('tw-pd-blocked').checked = true;
+  document.getElementById('tw-pd-pot').checked = true;
+  document.getElementById('tw-pd-allowed').checked = false;
+  updateTwYaml();
+  document.querySelectorAll('#twModal input, #twModal select').forEach(el => {
+    el.oninput = updateTwYaml;
+    el.onchange = updateTwYaml;
+  });
+  new bootstrap.Modal(document.getElementById('twModal')).show();
+}
+
 function openTrafficWatcherBuilder(idx) {
   const detailModal = bootstrap.Modal.getInstance(document.getElementById('flowModal'));
   if (detailModal) detailModal.hide();
@@ -662,11 +686,12 @@ function loadTrafficWatchers() {
   fetch('{{ url_for("main.api_traffic_watchers_list") }}')
   .then(r => r.json())
   .then(watchers => {
-    const card = document.getElementById('tw-card');
     const body = document.getElementById('tw-body');
     document.getElementById('tw-count').textContent = watchers.length;
-    if (!watchers.length) { card.classList.add('d-none'); return; }
-    card.classList.remove('d-none');
+    if (!watchers.length) {
+      body.innerHTML = '<tr><td colspan="7" class="text-center text-muted p-3">No traffic watchers configured. Click <strong>New Traffic Watcher</strong> or click the <i class="bi bi-eye"></i> button on a flow result.</td></tr>';
+      return;
+    }
     body.innerHTML = watchers.map((tw, i) => `<tr>
       <td><strong>${tw.name}</strong></td>
       <td class="small"><code>${tw.src_include || '*'}</code>${tw.src_exclude ? ' <span class="text-danger">!' + tw.src_exclude + '</span>' : ''}</td>
