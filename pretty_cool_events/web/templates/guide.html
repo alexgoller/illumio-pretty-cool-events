@@ -146,6 +146,129 @@
       </div>
     </div>
 
+    <!-- Throttling -->
+    <div class="card mb-4">
+      <div class="card-body">
+        <h4>Throttling</h4>
+        <p>
+          Throttling prevents notification storms from high-frequency events.
+          Set a global default on the <a href="{{ url_for('main.config_page') }}">Configuration</a> page,
+          and optionally override per watcher.
+        </p>
+        <div class="table-responsive">
+          <table class="table table-sm">
+            <thead><tr><th>Spec</th><th>Meaning</th></tr></thead>
+            <tbody>
+              <tr><td><code>1/1h</code></td><td>Max 1 notification per event_type per plugin per hour</td></tr>
+              <tr><td><code>5/1h</code></td><td>Max 5 per hour</td></tr>
+              <tr><td><code>10/24h</code></td><td>Max 10 per day</td></tr>
+              <tr><td><code>0/1h</code></td><td>Suppress all (mute)</td></tr>
+              <tr><td>(empty)</td><td>No throttle (unlimited)</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Throttle keys are <code>event_type:plugin</code>, so the same event to different plugins throttles independently.</p>
+        <h5 class="mt-3">Per-Watcher Override</h5>
+        <p>Add <code>throttle</code> to a watcher's extra_data:</p>
+        <pre class="bg-body-tertiary p-3 rounded"><code>watchers:
+  user.login:
+    - status: failure
+      plugin: PCESlack
+      extra_data:
+        throttle: "1/1h"       # max 1 failed login alert per hour
+  agent.tampering:
+    - status: "*"
+      plugin: PCEPagerDuty
+      extra_data:
+        throttle: "1/24h"      # max 1 page per day</code></pre>
+      </div>
+    </div>
+
+    <!-- Traffic watchers -->
+    <div class="card mb-4">
+      <div class="card-body">
+        <h4>Traffic Watchers</h4>
+        <p>
+          Traffic watchers monitor PCE traffic flows for specific patterns &mdash;
+          blocked connections, unusual ports, cross-environment traffic &mdash; and
+          send notifications. They use the PCE's async traffic analysis API
+          with human-readable label expressions.
+        </p>
+
+        <h5 class="mt-3">Creating a Traffic Watcher</h5>
+        <div class="list-group list-group-flush mb-3">
+          <div class="list-group-item">
+            <span class="badge bg-primary rounded-pill me-2">1</span>
+            Go to <a href="{{ url_for('main.traffic_page') }}">Traffic</a> and run a query
+            (e.g. set Sources to <code>env=prod</code>, uncheck "Allowed")
+          </div>
+          <div class="list-group-item">
+            <span class="badge bg-primary rounded-pill me-2">2</span>
+            Find a flow you care about and click the <i class="bi bi-eye"></i> eye button
+          </div>
+          <div class="list-group-item">
+            <span class="badge bg-primary rounded-pill me-2">3</span>
+            The watcher builder pre-fills source/dest labels, port, and decision from that flow
+          </div>
+          <div class="list-group-item">
+            <span class="badge bg-primary rounded-pill me-2">4</span>
+            Adjust scope, pick a plugin and interval, then click "Create Traffic Watcher"
+          </div>
+        </div>
+
+        <h5 class="mt-3">Label Expressions</h5>
+        <p>Traffic watchers use label expressions that auto-resolve to PCE hrefs:</p>
+        <div class="table-responsive">
+          <table class="table table-sm">
+            <thead><tr><th>Expression</th><th>Meaning</th></tr></thead>
+            <tbody>
+              <tr><td><code>env=prod</code></td><td>Workloads with env label = prod</td></tr>
+              <tr><td><code>env=prod, bu=banking</code></td><td>AND: both labels must match</td></tr>
+              <tr><td><code>role=web OR role=db</code></td><td>OR: either label matches</td></tr>
+              <tr><td><code>env=dev, env=staging</code> (in exclude)</td><td>Exclude both environments</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h5 class="mt-3">Service Filters</h5>
+        <div class="table-responsive">
+          <table class="table table-sm">
+            <thead><tr><th>Expression</th><th>Meaning</th></tr></thead>
+            <tbody>
+              <tr><td><code>443/tcp</code></td><td>HTTPS</td></tr>
+              <tr><td><code>3306/tcp, 5432/tcp</code></td><td>MySQL or PostgreSQL</td></tr>
+              <tr><td><code>53/udp</code></td><td>DNS</td></tr>
+              <tr><td>(empty)</td><td>All services</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h5 class="mt-3">YAML Config Example</h5>
+        <pre class="bg-body-tertiary p-3 rounded"><code>traffic_watchers:
+  - name: blocked-to-payment-db
+    src_include: "env=prod"
+    dst_include: "app=payment, role=db"
+    services_include: "3306/tcp, 5432/tcp"
+    policy_decisions: [blocked, potentially_blocked]
+    plugin: PCESlack
+    interval: "24h"
+
+  - name: cross-env-traffic
+    src_include: "env=prod"
+    dst_include: "env=staging"
+    policy_decisions: [allowed, blocked, potentially_blocked]
+    plugin: PCEMail
+    template: email-full.html
+    interval: "6h"</code></pre>
+
+        <h5 class="mt-3">Viewing Traffic Watchers</h5>
+        <ul>
+          <li><a href="{{ url_for('main.traffic_page') }}">Traffic page</a> &mdash; shows active watchers below the results table</li>
+          <li><a href="{{ url_for('main.diagram_page') }}">Diagram page</a> &mdash; visualizes traffic watchers as an orange flow diagram</li>
+        </ul>
+      </div>
+    </div>
+
     <!-- Templates explained -->
     <div class="card mb-4">
       <div class="card-body">
@@ -164,6 +287,7 @@
               <tr><td><code>email.tmpl</code></td><td>HTML</td><td>Email notifications</td></tr>
               <tr><td><code>sms.tmpl</code></td><td>Short text</td><td>SMS / PagerDuty</td></tr>
               <tr><td><code>default-teams.tmpl</code></td><td>Markdown</td><td>Microsoft Teams</td></tr>
+              <tr><td><code>email-full.html</code></td><td>Rich HTML</td><td>Full-detail email with diffs, actions, JSON</td></tr>
             </tbody>
           </table>
         </div>
