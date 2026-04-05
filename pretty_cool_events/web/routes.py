@@ -172,6 +172,24 @@ def plugins_page() -> str:
     )
 
 
+@bp.route("/diagram")
+@_auth_required
+def diagram_page() -> str:
+    """Visual watcher flow diagram."""
+    config = _get_config()
+    meta_map = {k: {"display_name": v.display_name, "icon": v.icon}
+                for k, v in PLUGIN_METADATA.items()}
+    return render_template(
+        "diagram.html",
+        watchers_json=json.dumps(
+            {p: [a.model_dump() for a in actions] for p, actions in config.watchers.items()},
+            default=str,
+        ),
+        plugin_meta_json=json.dumps(meta_map),
+        config=config,
+    )
+
+
 @bp.route("/guide")
 @_auth_required
 def guide_page() -> str:

@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+
+{% block title %}Watcher Diagram{% endblock %}
+
+{% block content %}
+<h2 class="mb-4"><i class="bi bi-diagram-3"></i> Watcher Flow Diagram</h2>
+
+<div class="card">
+  <div class="card-body p-0">
+    <div style="overflow-x:auto;">
+      <svg id="diagram" width="100%" height="400" style="min-width:800px;"></svg>
+    </div>
+  </div>
+</div>
+
+<div class="card mt-4">
+  <div class="card-header">Legend</div>
+  <div class="card-body">
+    <div class="d-flex flex-wrap gap-4">
+      <div><svg width="18" height="18"><rect width="18" height="18" rx="4" fill="#1a1a2e"/></svg> PCE Source</div>
+      <div><svg width="18" height="18"><rect width="18" height="18" rx="4" fill="#0d6efd"/></svg> Watcher Pattern</div>
+      <div><svg width="18" height="18"><rect width="18" height="18" rx="4" fill="#6c757d"/></svg> Filter (status/severity)</div>
+      <div><svg width="18" height="18"><rect width="18" height="18" rx="4" fill="#198754"/></svg> Plugin Output</div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const watchers = {{ watchers_json | safe }};
+const pluginMeta = {{ plugin_meta_json | safe }};
+const pceFqdn = {{ config.pce.pce | tojson }};
+
+// --- Layout computation ---
+// Columns: PCE -> Patterns -> Filters -> Plugins
+// Each watcher pattern fans out to its actions, each action has a filter node and a plugin node.
+
+const COL_PCE = 80;
+const COL_PATTERN = 280;
+const COL_FILTER = 520;
+const COL_PLUGIN = 760;
+const ROW_START = 60;
+const ROW_GAP = 70;
+const NODE_W = 180;
+const NODE_H = 44;
+const NODE_RX = 8;
+
+const svg = document.getElementById('diagram');
+let elements = [];  // {x, y, w, h, label, sublabel, color, textColor}
+let connections = []; // {x1, y1, x2, y2, color}
+
+// Collect unique plugins across all watchers
+const pluginSet = new Set();
+const patterns = Object.keys(watchers);
+let totalRows = 0;
+const patternRows = {};
+
+patterns.forEach(p => {
+  const actions = watchers[p];
+  patternRows[p] = { start: totalRows, count: actions.length };
+  actions.forEach(a => pluginSet.add(a.plugin));
+  totalRows += actions.length;
+});
+
+const plugins = [...pluginSet];
+
+// Compute positions
+let currentRow = 0;
+
+// PCE node (centered vertically)
+const pceY = ROW_START + (totalRows - 1) * ROW_GAP / 2;
+const pceNode = { x: COL_PCE - NODE_W/2, y: pceY - NODE_H/2, w: NODE_W, h: NODE_H,
+  label: 'Illumio PCE', sublabel: pceFqdn, color: '#1a1a2e', textColor: '#fff' };
+elements.push(pceNode);
+
+// Pattern and filter nodes
+const patternNodes = {};
+const filterNodes = [];
+
+patterns.forEach(pattern => {
+  const info = patternRows[pattern];
+  const midY = ROW_START + (info.start + (info.count - 1) / 2) * ROW_GAP;
+  const pNode = {
+    x: COL_PATTERN - NODE_W/2, y: midY - NODE_H/2, w: NODE_W, h: NODE_H,
+    label: pattern, sublabel: info.count + ' action' + (info.count > 1 ? 's' : ''),
+    color: '#0d6efd', textColor: '#fff'
+  };
+  elements.push(pNode);
+  patternNodes[pattern] = pNode;
+
+  // Connect PCE -> Pattern
+  connections.push({
+    x1: pceNode.x + pceNode.w, y1: pceNode.y + pceNode.h / 2,
+    x2: pNode.x, y2: pNode.y + pNode.h / 2,
+    color: '#adb5bd'
+  });
+
+  // Filter + plugin nodes for each action
+  watchers[pattern].forEach((action, i) => {
+    const rowY = ROW_START + (info.start + i) * ROW_GAP;
+    const statusLabel = action.status === '*' ? 'any status' : action.status;
+    const sevLabel = action.severity || 'any';
+    const matchFields = action.extra_data?.match_fields;
+    let filterLabel = statusLabel;
+    if (matchFields && Object.keys(matchFields).length) {
+      filterLabel += ' + ' + Object.keys(matchFields).length + ' field' +
+        (Object.keys(matchFields).length > 1 ? 's' : '');
+    }
+
+    const fNode = {
+      x: COL_FILTER - NODE_W/2, y: rowY - NODE_H/2, w: NODE_W, h: NODE_H,
+      label: filterLabel, sublabel: 'sev: ' + sevLabel,
+      color: '#6c757d', textColor: '#fff'
+    };
+    elements.push(fNode);
+    filterNodes.push({ node: fNode, action });
+
+    // Pattern -> Filter
+    connections.push({
+      x1: pNode.x + pNode.w, y1: pNode.y + pNode.h / 2,
+      x2: fNode.x, y2: fNode.y + fNode.h / 2,
+      color: '#adb5bd'
+    });
+  });
+});
+
+// Plugin nodes - deduplicate and position
+const pluginNodes = {};
+// Compute which rows each plugin appears in to find its vertical center
+const pluginRowPositions = {};
+filterNodes.forEach((fn, i) => {
+  const pName = fn.action.plugin;
+  if (!pluginRowPositions[pName]) pluginRowPositions[pName] = [];
+  pluginRowPositions[pName].push(fn.node.y + fn.node.h / 2);
+});
+
+plugins.forEach(pName => {
+  const positions = pluginRowPositions[pName] || [pceY];
+  const avgY = positions.reduce((a, b) => a + b, 0) / positions.length;
+  const meta = pluginMeta[pName] || { display_name: pName, icon: 'bi-plug' };
+  const template = filterNodes.find(fn => fn.action.plugin === pName)?.action.extra_data?.template || '';
+
+  const plugNode = {
+    x: COL_PLUGIN - NODE_W/2, y: avgY - NODE_H/2, w: NODE_W, h: NODE_H,
+    label: meta.display_name, sublabel: template ? template : pName,
+    color: '#198754', textColor: '#fff'
+  };
+  elements.push(plugNode);
+  pluginNodes[pName] = plugNode;
+});
+
+// Filter -> Plugin connections
+filterNodes.forEach(fn => {
+  const plugNode = pluginNodes[fn.action.plugin];
+  if (plugNode) {
+    connections.push({
+      x1: fn.node.x + fn.node.w, y1: fn.node.y + fn.node.h / 2,
+      x2: plugNode.x, y2: plugNode.y + plugNode.h / 2,
+      color: '#198754'
+    });
+  }
+});
+
+// --- Render SVG ---
+const totalHeight = Math.max(ROW_START + totalRows * ROW_GAP + 40, 300);
+svg.setAttribute('height', totalHeight);
+svg.setAttribute('viewBox', `0 0 900 ${totalHeight}`);
+
+// Defs for arrow marker
+svg.innerHTML = `
+<defs>
+  <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5"
+    markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+    <path d="M 0 0 L 10 5 L 0 10 z" fill="#adb5bd"/>
+  </marker>
+  <marker id="arrow-green" viewBox="0 0 10 10" refX="10" refY="5"
+    markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+    <path d="M 0 0 L 10 5 L 0 10 z" fill="#198754"/>
+  </marker>
+</defs>`;
+
+// Draw connections as curved paths
+connections.forEach(c => {
+  const dx = (c.x2 - c.x1) * 0.5;
+  const markerEnd = c.color === '#198754' ? 'url(#arrow-green)' : 'url(#arrow)';
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', `M${c.x1},${c.y1} C${c.x1+dx},${c.y1} ${c.x2-dx},${c.y2} ${c.x2},${c.y2}`);
+  path.setAttribute('fill', 'none');
+  path.setAttribute('stroke', c.color);
+  path.setAttribute('stroke-width', '2');
+  path.setAttribute('marker-end', markerEnd);
+  svg.appendChild(path);
+});
+
+// Draw nodes
+elements.forEach(el => {
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+
+  const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  rect.setAttribute('x', el.x);
+  rect.setAttribute('y', el.y);
+  rect.setAttribute('width', el.w);
+  rect.setAttribute('height', el.h);
+  rect.setAttribute('rx', NODE_RX);
+  rect.setAttribute('fill', el.color);
+  rect.setAttribute('stroke', el.color === '#1a1a2e' ? '#1a1a2e' : 'none');
+  g.appendChild(rect);
+
+  // Shadow
+  rect.setAttribute('filter', 'drop-shadow(0 1px 2px rgba(0,0,0,0.15))');
+
+  const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  label.setAttribute('x', el.x + el.w / 2);
+  label.setAttribute('y', el.y + 18);
+  label.setAttribute('text-anchor', 'middle');
+  label.setAttribute('fill', el.textColor);
+  label.setAttribute('font-size', '13');
+  label.setAttribute('font-weight', 'bold');
+  label.setAttribute('font-family', '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif');
+  // Truncate long labels
+  const maxChars = Math.floor(el.w / 8);
+  label.textContent = el.label.length > maxChars ? el.label.substring(0, maxChars - 1) + '...' : el.label;
+  g.appendChild(label);
+
+  if (el.sublabel) {
+    const sub = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    sub.setAttribute('x', el.x + el.w / 2);
+    sub.setAttribute('y', el.y + 34);
+    sub.setAttribute('text-anchor', 'middle');
+    sub.setAttribute('fill', el.textColor);
+    sub.setAttribute('font-size', '10');
+    sub.setAttribute('opacity', '0.75');
+    sub.setAttribute('font-family', '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif');
+    const subMax = Math.floor(el.w / 6);
+    sub.textContent = el.sublabel.length > subMax ? el.sublabel.substring(0, subMax - 1) + '...' : el.sublabel;
+    g.appendChild(sub);
+  }
+
+  svg.appendChild(g);
+});
+
+// Column headers
+const headers = [
+  { x: COL_PCE, label: 'Source' },
+  { x: COL_PATTERN, label: 'Watcher Patterns' },
+  { x: COL_FILTER, label: 'Filters' },
+  { x: COL_PLUGIN, label: 'Plugin Outputs' },
+];
+headers.forEach(h => {
+  const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  t.setAttribute('x', h.x);
+  t.setAttribute('y', 24);
+  t.setAttribute('text-anchor', 'middle');
+  t.setAttribute('fill', '#6c757d');
+  t.setAttribute('font-size', '12');
+  t.setAttribute('font-weight', 'bold');
+  t.setAttribute('text-transform', 'uppercase');
+  t.setAttribute('font-family', '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif');
+  t.textContent = h.label;
+  svg.appendChild(t);
+});
+</script>
+{% endblock %}
