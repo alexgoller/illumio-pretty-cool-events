@@ -1,0 +1,115 @@
+"""Base plugin class with auto-registration and template rendering."""
+
+from __future__ import annotations
+
+import importlib.resources
+import json
+import logging
+from abc import ABC, abstractmethod
+from typing import Any, ClassVar
+
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+
+logger = logging.getLogger(__name__)
+
+# Global plugin registry populated by __init_subclass__
+_PLUGIN_REGISTRY: dict[str, type[OutputPlugin]] = {}
+
+
+def _get_template_dir() -> str:
+    """Resolve the output templates directory from the package."""
+    ref = importlib.resources.files("pretty_cool_events") / "templates"
+    # Use as_file for traversable resources
+    return str(ref)
+
+
+def _json_filter(value: Any) -> str:
+    return json.dumps(value, indent=4, sort_keys=True, ensure_ascii=True)
+
+
+class OutputPlugin(ABC):
+    """Abstract base class for all output plugins."""
+
+    name: ClassVar[str] = ""
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        if cls.name:
+            _PLUGIN_REGISTRY[cls.name] = cls
+            logger.debug("Registered plugin: %s", cls.name)
+
+    def __init__(self) -> None:
+        template_dir = _get_template_dir()
+        self._env = Environment(
+            loader=FileSystemLoader(template_dir),
+            autoescape=select_autoescape(["html", "xml"]),
+        )
+        self._env.filters["json_filter"] = _json_filter
+        self._configured = False
+
+    def render_template(self, template_name: str, event: dict[str, Any],
+                        template_globals: dict[str, Any] | None = None) -> str:
+        """Render an output template with event data and globals.
+
+        Templates get access to:
+        - All event fields as top-level variables (e.g., {{ event_type }})
+        - The full event dict as {{ event }} (for templates using event.field syntax)
+        - All template_globals as top-level variables (e.g., {{ pce_fqdn }})
+        Event fields take precedence over template_globals on collision.
+        """
+        context: dict[str, Any] = {}
+        if template_globals:
+            context.update(template_globals)
+        context.update(event)  # Event fields override globals
+        context["event"] = event  # Also available as nested object
+        template = self._env.get_template(template_name)
+        return template.render(**context)
+
+    @abstractmethod
+    def configure(self, config: dict[str, Any]) -> None:
+        """Configure the plugin with settings from the config file."""
+
+    @abstractmethod
+    def send(self, event: dict[str, Any], extra_data: dict[str, Any],
+             template_globals: dict[str, Any]) -> None:
+        """Process and send an event notification."""
+
+
+def get_registry() -> dict[str, type[OutputPlugin]]:
+    """Return the plugin registry."""
+    return dict(_PLUGIN_REGISTRY)
+
+
+def load_all_plugins() -> None:
+    """Import all plugin modules to trigger registration."""
+    import pretty_cool_events.plugins.email  # noqa: F401
+    import pretty_cool_events.plugins.file  # noqa: F401
+    import pretty_cool_events.plugins.jira_plugin  # noqa: F401
+    import pretty_cool_events.plugins.pagerduty  # noqa: F401
+    import pretty_cool_events.plugins.servicenow  # noqa: F401
+    import pretty_cool_events.plugins.slack  # noqa: F401
+    import pretty_cool_events.plugins.sns  # noqa: F401
+    import pretty_cool_events.plugins.stdout  # noqa: F401
+    import pretty_cool_events.plugins.syslog  # noqa: F401
+    import pretty_cool_events.plugins.teams  # noqa: F401
+    import pretty_cool_events.plugins.webhook  # noqa: F401
+
+
+def create_plugins(config: Any) -> dict[str, OutputPlugin]:
+    """Discover, instantiate, and configure all active plugins."""
+    load_all_plugins()
+    registry = get_registry()
+    active_names = config.get_active_plugins()
+    plugins: dict[str, OutputPlugin] = {}
+
+    for name in active_names:
+        if name not in registry:
+            logger.warning("Plugin '%s' referenced in watchers but not found", name)
+            continue
+        plugin = registry[name]()
+        plugin_config = config.get_plugin_config(name)
+        plugin.configure(plugin_config)
+        plugins[name] = plugin
+        logger.info("Activated plugin: %s", name)
+
+    return plugins
