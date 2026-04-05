@@ -48,6 +48,28 @@
   </div>
 
   <div class="card mb-4">
+    <div class="card-header">Notification Throttling</div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label for="throttle_default" class="form-label">Default Throttle</label>
+          <input type="text" class="form-control" id="throttle_default" name="throttle_default"
+                 value="{{ config.throttle_default }}" placeholder="e.g. 1/1h">
+          <div class="form-text">
+            Format: <code>N/period</code> &mdash; max N notifications per event type per plugin within the period.
+            Examples: <code>1/1h</code> (once per hour), <code>5/1h</code> (5 per hour), <code>10/24h</code> (10 per day).
+            Leave empty for no throttle. Watchers can override with <code>throttle</code> in extra_data.
+          </div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Throttle Status</label>
+          <div id="throttle-status" class="p-2 bg-body-tertiary rounded small">Loading...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-4">
     <div class="card-header">Web UI Authentication</div>
     <div class="card-body">
       <div class="row g-3">
@@ -76,4 +98,32 @@
     <i class="bi bi-eye"></i> Manage Watchers
   </a>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+fetch('{{ url_for("main.api_throttle") }}')
+  .then(r => r.json())
+  .then(data => {
+    const el = document.getElementById('throttle-status');
+    if (!data.default) {
+      el.innerHTML = '<span class="text-muted">No throttle configured</span>';
+    } else {
+      let html = `<strong>Default:</strong> ${data.default}<br>`;
+      html += `<strong>Active keys:</strong> ${data.active_keys}<br>`;
+      html += `<strong>Total suppressed:</strong> ${data.total_suppressed}`;
+      if (data.total_suppressed > 0) {
+        html += '<br><strong>Suppressed:</strong><ul class="mb-0">';
+        for (const [k, v] of Object.entries(data.suppressed_by_key)) {
+          html += `<li><code>${k}</code>: ${v} suppressed</li>`;
+        }
+        html += '</ul>';
+      }
+      el.innerHTML = html;
+    }
+  })
+  .catch(() => {
+    document.getElementById('throttle-status').innerHTML = '<span class="text-muted">Not available</span>';
+  });
+</script>
 {% endblock %}

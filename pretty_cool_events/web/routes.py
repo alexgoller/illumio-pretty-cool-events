@@ -240,6 +240,13 @@ def config_page() -> str:
         config.httpd.enabled = "httpd" in request.form
         config.traffic_worker = "traffic_worker" in request.form
 
+        # Throttle
+        throttle_val = request.form.get("throttle_default", "")
+        config.throttle_default = throttle_val
+        throttler = current_app.config.get("THROTTLER")
+        if throttler:
+            throttler.update_default(throttle_val)
+
         # Auth settings
         new_user = request.form.get("httpd_username", "")
         new_pass = request.form.get("httpd_password", "")
@@ -622,6 +629,16 @@ def api_event_stream() -> Response:
 
     return Response(generate(), mimetype="text/event-stream",
                     headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@bp.route("/api/throttle")
+@_auth_required
+def api_throttle() -> Any:
+    """Return throttle state and suppressed event counts."""
+    throttler = current_app.config.get("THROTTLER")
+    if not throttler:
+        return jsonify({"default": "", "active_keys": 0, "total_suppressed": 0, "suppressed_by_key": {}})
+    return jsonify(throttler.snapshot())
 
 
 @bp.route("/api/stats")

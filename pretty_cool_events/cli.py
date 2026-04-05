@@ -96,7 +96,8 @@ def run(config_path: str, log_level: str) -> None:
     if app_config.httpd.enabled:
         from pretty_cool_events.web.app import create_app
 
-        flask_app = create_app(app_config, stats, plugins, pce_client=pce_client)
+        flask_app = create_app(app_config, stats, plugins, pce_client=pce_client,
+                               throttler=event_loop.throttler)
         web_thread = threading.Thread(
             target=lambda: flask_app.run(
                 host=app_config.httpd.address,

@@ -11,6 +11,7 @@ from pretty_cool_events.config import AppConfig
 from pretty_cool_events.pce_client import PCEClient
 from pretty_cool_events.plugins.base import OutputPlugin
 from pretty_cool_events.stats import StatsTracker
+from pretty_cool_events.throttle import Throttler
 from pretty_cool_events.watcher import WatcherRegistry
 
 logger = logging.getLogger(__name__)
@@ -32,11 +33,16 @@ class EventLoop:
         self._stats = stats
         self._plugins = plugins
         self._config = config
+        self._throttler = Throttler(config.throttle_default)
         self._stop_event = threading.Event()
         self._template_globals = {
             "pce_fqdn": config.pce.pce,
             "pce_org": config.pce.pce_org,
         }
+
+    @property
+    def throttler(self) -> Throttler:
+        return self._throttler
 
     def run(self) -> None:
         """Run the event polling loop until stop() is called."""
@@ -88,6 +94,12 @@ class EventLoop:
                 if not plugin:
                     logger.warning("Plugin '%s' not available for event %s",
                                    action.plugin, event_type)
+                    continue
+
+                # Check throttle (per-watcher override via extra_data.throttle)
+                throttle_override = extra_data.get("throttle", "")
+                if not self._throttler.allow(event_type, action.plugin, throttle_override):
+                    logger.debug("Throttled %s -> %s", event_type, action.plugin)
                     continue
 
                 try:

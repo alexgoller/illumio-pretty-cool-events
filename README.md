@@ -211,6 +211,134 @@ watchers:
           severity: "err|warning"
 ```
 
+## Throttling
+
+Throttling prevents notification storms from high-frequency events. Set a default throttle that applies to all watchers, and optionally override per watcher.
+
+### Default Throttle
+
+Set in the config file or via the Configuration page:
+
+```yaml
+config:
+  throttle_default: "1/1h"    # Max 1 notification per event_type per plugin per hour
+```
+
+Format: `N/period` where N is the max count and period is a duration:
+
+| Spec | Meaning |
+|------|---------|
+| `1/1h` | Max 1 per hour (per event_type + plugin combo) |
+| `5/1h` | Max 5 per hour |
+| `10/24h` | Max 10 per day |
+| `0/1h` | Suppress all (mute) |
+| (empty) | No throttle (unlimited) |
+
+### Per-Watcher Override
+
+Add `throttle` to a watcher's `extra_data` to override the default:
+
+```yaml
+watchers:
+  user.login:
+    - status: failure
+      plugin: PCESlack
+      extra_data:
+        template: default-slack.html
+        channel: "#security"
+        throttle: "1/1h"        # Only 1 failed login alert per hour
+
+  agent.tampering:
+    - status: "*"
+      plugin: PCEPagerDuty
+      extra_data:
+        template: sms.tmpl
+        throttle: "1/24h"       # Max 1 page per day for tampering
+```
+
+Throttle keys are `event_type:plugin` - so `user.login:PCESlack` and `user.login:PCEMail` are throttled independently.
+
+### Monitoring Throttle State
+
+- **Config page**: Shows live throttle status (active keys, suppressed counts)
+- **API**: `GET /api/throttle` returns `{"default": "1/1h", "active_keys": 5, "total_suppressed": 23, "suppressed_by_key": {"user.login:PCESlack": 12, ...}}`
+
+## Traffic Watchers
+
+Traffic watchers monitor PCE traffic flows for specific patterns (blocked connections, unusual ports, cross-environment traffic) and send notifications. They use the PCE's async traffic analysis API with human-readable label expressions.
+
+### Configuration
+
+Traffic watchers are configured in a top-level `traffic_watchers` section:
+
+```yaml
+traffic_watchers:
+  - name: blocked-to-payment-db
+    src_include: "env=prod"
+    dst_include: "app=payment, role=db"
+    services_include: "3306/tcp, 5432/tcp"
+    policy_decisions: [blocked, potentially_blocked]
+    plugin: PCESlack
+    template: default-slack.html
+    interval: "24h"
+    max_results: 500
+
+  - name: cross-env-traffic
+    src_include: "env=prod"
+    dst_include: "env=staging"
+    policy_decisions: [allowed, blocked, potentially_blocked]
+    plugin: PCEMail
+    template: email-full.html
+    interval: "6h"
+```
+
+### Label Expressions
+
+Traffic watchers use human-readable label expressions that auto-resolve to PCE label hrefs:
+
+| Expression | Meaning |
+|-----------|---------|
+| `env=prod` | Workloads with env label = prod |
+| `env=prod, bu=banking` | AND: both labels must match |
+| `role=web OR role=db` | OR: either label matches |
+| `env=dev, env=staging` (in exclude) | Exclude both dev and staging |
+
+### Service Filters
+
+| Expression | Meaning |
+|-----------|---------|
+| `443/tcp` | HTTPS |
+| `3306/tcp, 5432/tcp` | MySQL or PostgreSQL |
+| `53/udp` | DNS |
+| `22/tcp` | SSH |
+| (empty) | All services |
+
+### Creating Traffic Watchers via the UI
+
+1. Go to **Traffic** page, run a query with your desired filters
+2. Find a flow you want to watch, click the **eye button**
+3. The watcher builder pre-fills source/destination labels, port, protocol, and policy decision from that specific flow
+4. Adjust the scope (broaden to all `env=prod` instead of one specific host)
+5. Pick a plugin and check interval
+6. Click "Create Traffic Watcher" - persisted to config immediately
+
+### Traffic Watcher Fields
+
+| Field | Description | Default |
+|-------|------------|---------|
+| `name` | Unique name for the watcher | *required* |
+| `src_include` | Source label expression | (all) |
+| `src_exclude` | Source labels to exclude | (none) |
+| `dst_include` | Destination label expression | (all) |
+| `dst_exclude` | Destination labels to exclude | (none) |
+| `services_include` | Port/protocol filter | (all) |
+| `services_exclude` | Services to exclude | (none) |
+| `policy_decisions` | Which decisions to include | `[blocked, potentially_blocked]` |
+| `plugin` | Plugin to notify | `PCEStdout` |
+| `template` | Output template | `default.html` |
+| `interval` | How often to check | `24h` |
+| `max_results` | Max flows per check | `500` |
+
 ## Plugins
 
 All plugins are configured under `config.plugin_config` in the config file. Only plugins referenced by watchers are activated at runtime.

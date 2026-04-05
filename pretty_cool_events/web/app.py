@@ -13,6 +13,7 @@ from pretty_cool_events.config import AppConfig
 from pretty_cool_events.pce_client import PCEClient
 from pretty_cool_events.plugins.base import OutputPlugin
 from pretty_cool_events.stats import StatsTracker
+from pretty_cool_events.throttle import Throttler
 
 
 def create_app(
@@ -20,6 +21,7 @@ def create_app(
     stats: StatsTracker,
     plugins: dict[str, OutputPlugin],
     pce_client: PCEClient | None = None,
+    throttler: Throttler | None = None,
 ) -> Flask:
     """Create and configure the Flask application."""
     template_dir = str(Path(__file__).parent / "templates")
@@ -46,6 +48,7 @@ def create_app(
     app.config["STATS"] = stats
     app.config["PLUGINS"] = plugins
     app.config["PCE_CLIENT"] = pce_client
+    app.config["THROTTLER"] = throttler
 
     from pretty_cool_events.web.routes import bp
     app.register_blueprint(bp)
