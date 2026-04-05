@@ -1,11 +1,20 @@
-FROM python:3.9
+# Build stage
+FROM python:3.12-slim AS builder
 
-ADD . /pretty-cool-events
-COPY entry.sh /usr/bin/entry.sh
-WORKDIR /pretty-cool-events
+WORKDIR /build
+COPY pyproject.toml .
+COPY pretty_cool_events/ pretty_cool_events/
 
-COPY requirements.txt requirements.txt
-RUN pip3 install -r requirements.txt
+RUN pip install --no-cache-dir .
 
+# Runtime stage
+FROM python:3.12-slim
 
-ENTRYPOINT [ "/bin/bash" , "/usr/bin/entry.sh", "/config/config.yaml" ]
+WORKDIR /app
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder /usr/local/bin/pce-events /usr/local/bin/pce-events
+COPY pretty_cool_events/ pretty_cool_events/
+
+ENV PYTHONWARNINGS="ignore:Unverified HTTPS request"
+
+ENTRYPOINT ["pce-events", "run", "--config", "/config/config.yaml"]

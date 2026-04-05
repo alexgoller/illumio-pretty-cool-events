@@ -135,3 +135,5 @@ event.sample
 config.yaml.bak
 src/config.yml
 .gpt-runner/*
+backups/
+*.egg-info/

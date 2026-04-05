@@ -1,255 +1,580 @@
-# illumio-pretty-cool-events
+# Pretty Cool Events
 
-![How it works](src/static/how-it-works.png)
-Illumio Pretty Cool Events aims to be a general notification mechanism that polls
-the Illumio Core Events API to get the latest audit events from the Illumio Core PCE.
+Real-time event monitoring and notification system for the Illumio Policy Compute Engine (PCE). Continuously polls the PCE Events API, matches events against configurable watcher rules, and routes notifications to Slack, Email, PagerDuty, Jira, Teams, ServiceNow, and more.
 
-It will then call plugin actions based on a user configuration (config.yaml).
+## How It Works
 
-# Installation
+```
+Illumio PCE  -->  Event Polling  -->  Watcher Matching  -->  Plugin Dispatch  -->  Notifications
+  (API)         (configurable       (exact, regex,         (Slack, Email,       (channels,
+                 interval)           field-level)           Jira, SMS, ...)     tickets, etc.)
+```
 
-    pip install -r requirements.txt
+1. **Poll** - Fetches audit events from the PCE at a configurable interval (default: 10s)
+2. **Match** - Each event is checked against watcher rules (exact type, regex patterns, field-level filters)
+3. **Render** - Matched events are formatted through Jinja2 templates
+4. **Dispatch** - Rendered notifications are sent to one or more output plugins
+5. **Track** - Statistics are collected and available via the web dashboard and API
 
-Create your config file as specified in the [Configuration](#Configuration) section.
+## Quick Start
 
-    ./pretty-cool-events --config config.yaml
+### Install
 
+```bash
+pip install -e .
+```
 
-## Building the container image
+### Create a configuration file
 
-    docker build -t docker-pretty .
+```bash
+pce-events config init --output config.yaml
+```
 
-## Running the container image
+This walks you through setting up the PCE connection interactively and creates a starter config with a catch-all watcher.
 
-    docker run -v 'type=bind,src=config.yaml,dst=/config/config.yaml' docker-pretty
+### Validate configuration
 
-# Configuration
+```bash
+pce-events config validate --config config.yaml
+```
 
-Configuration is done via a YAML config file, find a sample file in the
-config.yaml.sample in the base directory.
+### Run
 
-## Config file sections
+```bash
+pce-events run --config config.yaml
+```
 
-### config
+### Docker
 
-Global configuration
+```bash
+docker build -t pretty-cool-events .
+docker run -v $(pwd)/config.yaml:/config/config.yaml pretty-cool-events
+```
 
-List of keys:
+## Configuration
 
-* pce - the pce fqdn
-* pce_api_user - the pce api key user (api_xyz1234...)
-* pce_api_secret - the pce api key secret
-* pce_org - the pce org
-* pce_poll_interval - the number of seconds between checking for events
-* httpd - run the builtin flask httpd (default: no, don't use in production)
-* httpd_listener_address - IP which httpd listens on
-* httpd_listener_port - Port for httpd listener
-* default_template - the default template to use in output plugins
+Configuration is a YAML file with two main sections: `config` (connection and plugin settings) and `watchers` (event routing rules).
 
-#### plugin_config
+### Minimal Example
 
-Inside config you can configure each of the plugins
+```yaml
+config:
+  pce: pce.example.com:8443
+  pce_api_user: api_xxxxxxxxxxxx
+  pce_api_secret: your-secret-here
+  pce_org: 1
+  pce_poll_interval: 10
+  httpd: true
+  httpd_listener_port: 8443
+  default_template: default.html
+  plugin_config:
+    PCEStdout:
+      prepend: "[PCE] "
 
-### watchers
-
-Section to specify watchers. Watchers are event types pretty-cool-events should listen to.
-
-Each event type in the PCE and wildcard event types can have one or more watchers.
-The example in config.yaml.example will configure 3 watchers for the user.login event to go
-to Slack, Mail and SNS/SMS.
-
-# Available plugins (Work in progress)
-
-* PCEStdout  - directly output events to stdout
-* PCEMail    - email specific events
-* PCESlack   - send to a slack channel or person
-* PCESNS     - send SMS/text messages via Amazon SNS
-* PCESyslog  - useful for SaaS instances or PoCs, poll the event API and send to syslog
-* PCEWebhook - send custom webhooks (needs more work)
-* PCEJira    - open a ticket in a jira project (especially useful for provisioning changes quickly)
-* PCETeams   - create a message via Teams Connectorcard
-* PCEServiceNow - create an incident in the ServiceNow incident table
-* PCEPagerDuty - creates an incident in PagerDuty
-* PCEFile    - log PCE events to a logfile
-
-## PCEStdout
-
-## PCEMail
-
-### Configuration
-
-* PCEMail: 
-  * smtp_host: smtp_host with optional portnumber
-  * smtp_user: smtp_username
-  * smtp_password: smtp_password
-  * smtp_port: smtp_port
-  * email_to: default email to send to
-
-## PCESNS
-
-### Configuration
-
-* PCESNS
-  * access_key - aws access key for SNS service
-  * access_key_secret - aws access key secret for SNS service
-  * aws_region_name - aws region name (e.g. eu-central-1)
- 
-## PCEJira
-
-### Configuration
-
-* PCEJira:
-  + jira_server - url of jira server
-  + username - jira user name
-  + api_token - api_token of user
-  + project - the jira project to post to
-   
-## PCEServiceNow
-
-This plugin will create an incident in the SNOW incidents table. Currently no other tables
-are configurable, fields are fixed, initial working dummy, more work to do.
-
-### Configuration
-
-* PCEServiceNow:
-  + instance - snow instance
-  + username - SNOW user name
-  + password - password
-   
-## PCESlack
-
-### Configuration
-
-* PCESlack
-  + template - default-slack.html
-  + slack_bot_token: token
-
-## PCETeams
-
-### Configuration
-
-* PCETeams
-  + webhook: Webhook URL (https://docs.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/how-to/add-incoming-webhook)
-  + template: the template to use for this message/connector card
-
-
-## PCESyslog
-
-This is not in a good state and might be working or not.
-
-### Configuration
-
-* PCESyslog
-  +  syslog_host: host to send syslog to
-  +  syslog_port: syslog port
-  +  template: template to use for sending syslog
-  +  syslog_cert_file: TLS cert file
-
-## PCEPagerDuty
-
-### Configuration
-
-Some of the below values are IDs used in the PagerDuty system. The plugin right now 
-does not have the capability to resolve those automatically. Therefore i would recommend
-to use the pd command line utility to get the values.  Below is a example call to PagerDuty
-using the command line utility.
-
-    pd incident create  --debug -t "Test" --service "Illumio" --priority=P1 --details "This is just a test"
-
-The command will list the requests and responses and for the right priority and services,
-please find the values (id attribute for the priority to use).
-
-    priority: {
-      id: 'P7I8BQT',
-      type: 'priority',
-      summary: 'P1',
-      self: 'https://api.eu.pagerduty.com/priorities/P7I8BQT',
-      html_url: null,
-      account_id: 'P8TA5X4',
-      color: 'a8171c',
-      created_at: '2022-12-01T17:08:17Z',
-      description: '',
-      name: 'P1',
-      order: 500000000,
-      schema_version: 0,
-      updated_at: '2022-12-01T17:08:17Z'
-    },
-
-* PCEPagerDuty
-  +  template: the jinja2 template to use for the body of the pagerduty incident
-  +  api_key: the API key from your pagerduty instance
-  +  pd_from: the default from mail address used in PagerDuty
-  +  pd_priority: the Priority ID to use in the PagerDuty incident
-  +  pd_service: the Service ID from PagerDuty
-
-
-## PCEFile
-
-Plugin to write events to a filesystem file.
-
-### Configuration
-
-* PCEFile
-  +  template: template to use for PCEFile events
-  +  logfile: path to a logfile to log to
-
-# Plugin architecture
-
-Plugins can have a config block in the global config file, the config block
-should have the same name as the Plugin class On init the config section under
-the plugin class name is handed over to the plugins config method
-
-# Template support
-
-Every plugin inherits from OutputPlugin, which creates a jinja2 environment
-that has a filesystem loader based on the templates directory.
-That means any plugin can rely to load templates from the templates directory.
-
-    template = self.env.get_template('filename')
-
-You can then render the template with the event being handed over by the main
-loop
-
-    template.render(output)
-
-# Templates included
-
-* default.html - default template
-* default-slacks.html - a slack BlockKit template to make for fancier slack notifications.
-* sms.tmpl - Send SMS with the event and a link to the Illumio Core PCE UI
-* email.tmpl - standard email template
-* default-json.tmpl - including sample json output
-
-# How to write your own plugin
-
-* create a new plugin under plugins
-* be sure to import outputplugin for the basic functionality
-* populate your own methods with code
-
-
-    class <YourPlugin>(OutputPlugin):
-        def config(self,config):
-            do something here
-        def output(self,config):
-            do the action here
-
-# Known issues
-
-* python creates insecure request warnings if your certificates are not
-  official or trusted. You can circumvent by setting export
-PYTHONWARNINGS="ignore:Unverified HTTPS request"
-
-# TODO
-
-* throttling of specific event types
-* plugins can indicate what is valid configuration for them (mandatory/optional)
-* config checks
-* fix traffic worker
-
-# Ideas
-
-* Plugin to execute local actions - e.g. git commit policy after each PCE provision
-* Notify people on slack for problems in the PCE or process
-* Get policy and check for constraints
-* Do something useful with tampering events
-* etc.
+watchers:
+  ".*":
+    - status: "*"
+      plugin: PCEStdout
+      extra_data:
+        template: default.html
+```
+
+### Full Example
+
+See [`config.yaml.example`](config.yaml.example) for a complete configuration with all plugins and watchers.
+
+### Config Reference
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `pce` | string | *required* | PCE hostname (e.g. `pce.example.com:8443`) |
+| `pce_api_user` | string | *required* | API key identifier (starts with `api_`) |
+| `pce_api_secret` | string | *required* | API key secret |
+| `pce_org` | int | `1` | PCE organization ID |
+| `pce_poll_interval` | int | `10` | Seconds between event polls |
+| `pce_traffic_interval` | int | `120` | Seconds between traffic flow queries |
+| `httpd` | bool | `false` | Enable the web UI |
+| `httpd_listener_address` | string | `0.0.0.0` | Web UI bind address |
+| `httpd_listener_port` | int | `8443` | Web UI port |
+| `default_template` | string | `default.html` | Default Jinja2 output template |
+| `traffic_worker` | bool | `false` | Enable traffic flow analysis polling |
+
+### Environment Variable Overrides
+
+Secrets can be provided via environment variables instead of the config file:
+
+| Variable | Overrides |
+|----------|-----------|
+| `PCE_EVENTS_PCE` | `config.pce` |
+| `PCE_EVENTS_PCE_API_USER` | `config.pce_api_user` |
+| `PCE_EVENTS_PCE_API_SECRET` | `config.pce_api_secret` |
+| `PCE_EVENTS_PCE_ORG` | `config.pce_org` |
+| `PCE_EVENTS_PCE_POLL_INTERVAL` | `config.pce_poll_interval` |
+
+## Watchers
+
+Watchers define which PCE events trigger which plugins. Each watcher has a **pattern** (the event type to match) and one or more **actions** (plugin + template + extra data).
+
+### Pattern Matching
+
+| Pattern | Matches |
+|---------|---------|
+| `user.login` | Exactly `user.login` |
+| `user.*` | All user events (login, logout, create, etc.) |
+| `rule_set.*` | Rule set create, update, delete |
+| `agent.*` | All agent events (activate, tampering, deactivate, etc.) |
+| `request.*` | Authentication failures, server errors |
+| `.*` | Every event (catch-all) |
+
+Exact patterns are checked first (O(1) hash lookup), then regex patterns are evaluated in order.
+
+### Status Matching
+
+| Status | Behavior |
+|--------|----------|
+| `success` | Only events with `status: success` |
+| `failure` | Only events with `status: failure` |
+| `*` or `any` | All events regardless of status (including null) |
+
+Note: ~35% of PCE events have `null` status (e.g. session terminations, system tasks). Use `*` to catch these.
+
+### Advanced Field Matching
+
+Add `match_fields` to a watcher's `extra_data` to filter on any event field:
+
+```yaml
+watchers:
+  ".*":
+    - status: "*"
+      plugin: PCESlack
+      extra_data:
+        template: default-slack.html
+        channel: "#security-critical"
+        match_fields:
+          severity: "err|warning"                    # err OR warning
+          created_by.user.username: "admin@.*"       # regex on nested field
+```
+
+Supported operators:
+
+| Operator | Example | Description |
+|----------|---------|-------------|
+| Exact | `success` | Matches exactly |
+| Wildcard | `*` | Matches any value including null |
+| Negation | `!info` | Matches anything except `info` |
+| Alternatives | `err\|warning` | Matches either value |
+| Regex | `admin@.*` | Full regex matching |
+| Dot notation | `created_by.user.username` | Access nested event fields |
+
+### Watcher Examples
+
+```yaml
+watchers:
+  # Catch-all: log everything to a file
+  ".*":
+    - status: "*"
+      plugin: PCEFile
+      extra_data:
+        template: default-json.html
+
+  # User logins to Slack
+  user.login:
+    - status: success
+      plugin: PCESlack
+      extra_data:
+        template: default-slack.html
+        channel: "#access-log"
+
+  # Failed auth to PagerDuty
+  request.authentication_failed:
+    - status: failure
+      plugin: PCEPagerDuty
+      extra_data:
+        template: sms.tmpl
+
+  # All agent events to email
+  agent.*:
+    - status: "*"
+      plugin: PCEMail
+      extra_data:
+        template: email.tmpl
+        email_to: security-team@example.com
+
+  # Critical events only (severity err or warning)
+  ".*":
+    - status: "*"
+      plugin: PCESlack
+      extra_data:
+        template: default-slack.html
+        channel: "#security-alerts"
+        match_fields:
+          severity: "err|warning"
+```
+
+## Plugins
+
+All plugins are configured under `config.plugin_config` in the config file. Only plugins referenced by watchers are activated at runtime.
+
+### PCEStdout - Console Output
+
+Prints rendered events to the application log. Useful for debugging and validation.
+
+```yaml
+PCEStdout:
+  prepend: "[PCE] "
+  append: ""
+```
+
+### PCESlack - Slack
+
+Sends Block Kit formatted messages to Slack channels.
+
+```yaml
+PCESlack:
+  slack_bot_token: xoxb-...
+  template: default-slack.html
+```
+
+Requires a Slack App with the `chat:write` scope. Each watcher specifies the target channel in `extra_data.channel`.
+
+### PCEMail - Email (SMTP)
+
+Sends HTML email notifications via SMTP with TLS.
+
+```yaml
+PCEMail:
+  smtp_host: smtp.example.com
+  smtp_port: 587
+  smtp_user: alerts@example.com
+  smtp_password: secret
+  email_from: alerts@example.com
+  email_to: team@example.com
+  template: email.tmpl
+```
+
+### PCESNS - SMS (AWS SNS)
+
+Sends SMS text messages via Amazon SNS.
+
+```yaml
+PCESNS:
+  access_key: AKIAXXXXXXXX
+  access_key_secret: secret
+  aws_region_name: us-east-1
+```
+
+Each watcher specifies the phone number in `extra_data.phone_number` (E.164 format: `+15551234567`).
+
+### PCESyslog - Syslog
+
+Forwards events to a remote syslog server. Supports UDP and TLS/TCP.
+
+```yaml
+PCESyslog:
+  syslog_host: syslog.example.com
+  syslog_port: 514
+  syslog_cert_file: ""
+  template: default.html
+```
+
+### PCEWebhook - Generic Webhook
+
+POSTs event data to any URL. Universal integration point.
+
+```yaml
+PCEWebhook:
+  url: https://hooks.example.com/events
+  bearer_token: your-token
+```
+
+### PCEJira - Jira
+
+Creates Jira issues from events.
+
+```yaml
+PCEJira:
+  jira_server: https://mycompany.atlassian.net
+  username: user@example.com
+  api_token: secret
+  project: SEC
+  template: default.html
+```
+
+### PCETeams - Microsoft Teams
+
+Sends messages via Teams Incoming Webhook.
+
+```yaml
+PCETeams:
+  webhook: https://outlook.office.com/webhook/...
+  template: default-teams.tmpl
+```
+
+### PCEServiceNow - ServiceNow
+
+Creates incidents in ServiceNow.
+
+```yaml
+PCEServiceNow:
+  instance: mycompany.service-now.com
+  username: admin
+  password: secret
+  template: default.html
+```
+
+### PCEPagerDuty - PagerDuty
+
+Creates PagerDuty incidents to page on-call.
+
+```yaml
+PCEPagerDuty:
+  api_key: your-api-key
+  pd_from: oncall@example.com
+  pd_service: PXXXXXX
+  pd_priority: PXXXXXX
+  template: sms.tmpl
+```
+
+Use the `pd` CLI to find service and priority IDs: `pd incident create --debug -t "Test" --service "Illumio" --priority=P1`
+
+### PCEFile - File Logger
+
+Appends rendered events to a local file.
+
+```yaml
+PCEFile:
+  logfile: events.log
+  template: default-json.html
+```
+
+## Templates
+
+Events are formatted through Jinja2 templates before dispatch. Templates have access to all event fields as top-level variables and also as a nested `event` object.
+
+| Template | Format | Best For |
+|----------|--------|----------|
+| `default.html` | Plain text | Console output, general use |
+| `default-slack.html` | Slack Block Kit JSON | Slack messages |
+| `default-json.html` | JSON | File logging, webhooks |
+| `email.tmpl` | HTML | Email notifications |
+| `sms.tmpl` | Short text | SMS, PagerDuty |
+| `default-teams.tmpl` | Markdown | Microsoft Teams |
+| `rule_set.create.jira.tmpl` | Text | Jira tickets for rule set changes |
+
+### Template Variables
+
+All event fields are available as top-level variables:
+
+```
+{{ event_type }}              - e.g. "user.login"
+{{ status }}                  - "success", "failure", or null
+{{ severity }}                - "info", "warning", "err"
+{{ timestamp }}               - ISO 8601 timestamp
+{{ pce_fqdn }}                - PCE hostname
+{{ href }}                    - Event API path
+{{ created_by }}              - Dict with user/system/agent info
+{{ action }}                  - Dict with API endpoint, method, status code
+{{ resource_changes }}        - List of resource change dicts
+{{ notifications }}           - List of notification dicts
+```
+
+The full event is also available as `{{ event }}` for nested access: `{{ event.created_by.user.username }}`.
+
+### Writing Custom Templates
+
+Place `.html` or `.tmpl` files in the `pretty_cool_events/templates/` directory. Reference them by filename in watcher `extra_data.template`.
+
+## Web UI
+
+Enable with `httpd: true` in the config. The web interface provides:
+
+| Page | Path | Description |
+|------|------|-------------|
+| Dashboard | `/` | Live stats (events received, matched, plugin activity) |
+| Configuration | `/config` | Edit PCE connection settings |
+| Plugins | `/plugins` | Enable/disable plugins, configure credentials, see setup instructions |
+| Watchers | `/watchers` | Add, view, and delete watcher rules |
+| Events | `/events` | Browse historical PCE events with time range picker and filters |
+| Statistics | `/statistics` | Charts (plugin activity, event distribution, timeline) |
+| Guide | `/guide` | How-it-works documentation, pattern reference, CLI help |
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/health` | GET | Health check (`{"status": "ok"}`) |
+| `/api/stats` | GET | Current statistics as JSON |
+| `/api/events` | GET | Fetch PCE events with time range and filters |
+
+#### `/api/events` Query Parameters
+
+| Parameter | Example | Description |
+|-----------|---------|-------------|
+| `since` | `24h`, `7d`, `2026-01-01T00:00:00Z` | Start time (relative or ISO) |
+| `until` | `2026-01-02T00:00:00Z` | End time (default: now) |
+| `max_results` | `500` | Maximum events to return |
+| `event_type` | `user.*` | Filter by event type (regex) |
+| `status` | `success`, `failure`, `null` | Filter by status |
+| `severity` | `info`, `warning`, `err` | Filter by severity |
+| `created_by` | `user`, `system`, `agent` | Filter by creator type |
+| `search` | `admin@illumio` | Free-text search across all fields |
+
+## CLI Reference
+
+```
+pce-events run --config config.yaml [--log-level DEBUG|INFO|WARNING|ERROR]
+    Start the event monitoring service.
+
+pce-events config init [--output config.yaml]
+    Create a new config file interactively.
+
+pce-events config validate --config config.yaml
+    Validate a config file and show summary.
+
+pce-events config show --config config.yaml
+    Display config with secrets masked.
+
+pce-events watcher list --config config.yaml
+    List all configured watchers in a table.
+
+pce-events watcher add --config config.yaml
+    Add a new watcher interactively.
+
+pce-events test-plugin <PLUGIN_NAME> --config config.yaml
+    Send a synthetic test event through a plugin.
+```
+
+## Project Structure
+
+```
+pretty_cool_events/
+  __init__.py              Package init
+  __main__.py              python -m entry point
+  cli.py                   Click CLI (run, config, watcher, test-plugin)
+  config.py                Pydantic v2 config models, load/save, validation
+  pce_client.py            httpx-based PCE API client
+  event_loop.py            Main polling loop with graceful shutdown
+  watcher.py               Flexible event matching (exact, regex, field-level)
+  stats.py                 Thread-safe statistics tracking
+  plugin_meta.py           Plugin descriptions, field labels, setup instructions
+  plugins/
+    base.py                ABC base class with auto-registration and template rendering
+    stdout.py              Console output
+    slack.py               Slack (slack_sdk)
+    email.py               SMTP email
+    sns.py                 AWS SNS SMS
+    syslog.py              Remote syslog (UDP/TLS)
+    webhook.py             Generic HTTP webhook (httpx)
+    jira_plugin.py         Jira issue creation
+    teams.py               Microsoft Teams webhook (httpx)
+    servicenow.py          ServiceNow incidents (httpx)
+    pagerduty.py           PagerDuty incidents (pdpyras)
+    file.py                File logger
+  data/
+    event_types.yaml       Catalog of 273 PCE event types
+  templates/               Jinja2 output templates
+  web/
+    app.py                 Flask app factory
+    routes.py              Blueprint with all routes and API
+    templates/             Bootstrap 5 web UI templates
+    static/                CSS, JS, images
+tests/
+  conftest.py              Shared fixtures
+  test_config.py           Config loading, validation, env overrides (11 tests)
+  test_watcher.py          Pattern matching, status, field filters (14 tests)
+  test_stats.py            Thread-safe counters, timeline cap (5 tests)
+  test_pce_client.py       HTTP mocking, health check, events (5 tests)
+  test_event_loop.py       Routing, shutdown, error recovery (4 tests)
+  test_cli.py              CLI commands via CliRunner (4 tests)
+  test_plugins/            Per-plugin tests (7 tests)
+  test_web/test_routes.py  Flask route tests (12 tests)
+  integration/             End-to-end pipeline test (1 test)
+```
+
+## Development
+
+### Setup
+
+```bash
+pip install -e ".[dev]"
+```
+
+### Run Tests
+
+```bash
+pytest                         # 62 tests
+pytest --cov=pretty_cool_events  # with coverage
+```
+
+### Lint
+
+```bash
+ruff check pretty_cool_events/
+```
+
+### Type Check
+
+```bash
+mypy pretty_cool_events/
+```
+
+## Dependencies
+
+### Runtime
+
+| Package | Purpose |
+|---------|---------|
+| Flask | Web UI |
+| httpx | PCE API client, webhook/Teams/ServiceNow HTTP calls |
+| Pydantic v2 | Config validation |
+| Click | CLI |
+| Rich | CLI tables and formatting |
+| Jinja2 | Template rendering |
+| PyYAML | Config file parsing |
+| slack_sdk | Slack API |
+| boto3 | AWS SNS (SMS) |
+| jira | Jira API |
+| pdpyras | PagerDuty API |
+
+### Removed (from original)
+
+| Package | Replaced By |
+|---------|-------------|
+| `straight.plugin` | `importlib` + `__init_subclass__` auto-registration |
+| `rest3client` | `httpx` |
+| `regex` | `re` (stdlib) |
+| `jsonpickle` | Not needed |
+| `pymsteams` | Direct `httpx` POST |
+
+## Docker
+
+```bash
+# Build
+docker build -t pretty-cool-events .
+
+# Run
+docker run -v $(pwd)/config.yaml:/config/config.yaml pretty-cool-events
+
+# Override log level
+docker run -v $(pwd)/config.yaml:/config/config.yaml pretty-cool-events \
+  pce-events run --config /config/config.yaml --log-level DEBUG
+```
+
+The Dockerfile uses a multi-stage build with Python 3.12.
+
+## CI/CD
+
+GitHub Actions workflow (`.github/workflows/main.yml`) runs on every push to `main` and PRs:
+
+1. **Test** - `pip install`, `ruff check`, `pytest --cov`
+2. **Build & Push** - Docker image to `ghcr.io` (only on `release` branch)
+
+## Known Issues
+
+- Python creates SSL warnings with untrusted certificates. Set `export PYTHONWARNINGS="ignore:Unverified HTTPS request"` or set `verify_tls: false` in config.
+- The traffic worker is experimental and partially implemented.
+- Web UI config changes are in-memory only; restart the service to persist from the config file.
+
+## License
+
+MIT
