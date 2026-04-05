@@ -139,3 +139,4 @@ backups/
 *.egg-info/
 config-local.yaml
 events.log
+announcement.md
