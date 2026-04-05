@@ -237,7 +237,9 @@
           </div>
           <div class="col-md-4">
             <label class="form-label fw-bold">Template</label>
-            <input type="text" class="form-control" id="watcher-template" value="default.html">
+            <select class="form-select" id="watcher-template">
+              <option value="default.html">default.html</option>
+            </select>
           </div>
         </div>
 
@@ -447,27 +449,41 @@ function copyEventJSON() {
 
 // ---- Template preview ----
 let templateListLoaded = false;
+let templateListCache = [];
 
 function loadTemplateList() {
   if (templateListLoaded) return;
   fetch('{{ url_for("main.api_list_templates") }}')
     .then(r => r.json())
     .then(templates => {
+      templateListCache = templates;
+      // Populate preview dropdown
       const sel = document.getElementById('preview-template');
       sel.innerHTML = '<option value="">Select a template...</option>';
       templates.forEach(t => {
         const opt = document.createElement('option');
         opt.value = t;
         opt.textContent = t;
-        // Pre-select email-full for a good first impression
         if (t === 'email-full.html') opt.selected = true;
         sel.appendChild(opt);
       });
+      // Populate watcher builder dropdown
+      const wSel = document.getElementById('watcher-template');
+      wSel.innerHTML = '';
+      templates.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t;
+        opt.textContent = t;
+        if (t === 'default.html') opt.selected = true;
+        wSel.appendChild(opt);
+      });
       templateListLoaded = true;
-      // Auto-render if we pre-selected one
       if (sel.value) renderPreview();
     });
 }
+
+// Load templates on page load so the watcher builder has them ready
+document.addEventListener('DOMContentLoaded', loadTemplateList);
 
 function renderPreview() {
   const template = document.getElementById('preview-template').value;

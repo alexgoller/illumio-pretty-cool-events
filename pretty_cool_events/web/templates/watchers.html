@@ -113,7 +113,11 @@
         </div>
         <div class="col-md-2">
           <label class="form-label">Template</label>
-          <input type="text" class="form-control" name="watcher_template[]" value="default.html">
+          <select class="form-select" name="watcher_template[]">
+            {% for tmpl in output_templates %}
+            <option value="{{ tmpl }}" {{ 'selected' if tmpl == 'default.html' }}>{{ tmpl }}</option>
+            {% endfor %}
+          </select>
         </div>
       </div>
       <button type="submit" class="btn btn-primary mt-3"><i class="bi bi-plus-circle"></i> Add Watcher</button>

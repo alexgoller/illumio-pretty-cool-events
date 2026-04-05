@@ -72,6 +72,12 @@ def _get_label_resolver() -> LabelResolver:
     return resolver
 
 
+def _list_output_templates() -> list[str]:
+    """List available output template filenames."""
+    template_dir = importlib.resources.files("pretty_cool_events") / "templates"
+    return sorted(f.name for f in template_dir.iterdir() if not f.name.startswith("_"))
+
+
 def _persist_config() -> None:
     """Save current config to disk if a config_path is known."""
     config = _get_config()
@@ -292,8 +298,10 @@ def watchers_page() -> str:
         flash("Watcher configuration saved", "success")
         return redirect(url_for("main.watchers_page"))
 
+    output_templates = _list_output_templates()
     return render_template(
-        "watchers.html", config=config, watchers=config.watchers, event_types=event_types,
+        "watchers.html", config=config, watchers=config.watchers,
+        event_types=event_types, output_templates=output_templates,
     )
 
 

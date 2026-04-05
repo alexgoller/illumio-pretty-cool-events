@@ -208,7 +208,7 @@
             <label class="form-label fw-bold">Watcher Name</label>
             <input type="text" class="form-control" id="tw-name" placeholder="e.g. blocked-to-payment-db">
           </div>
-          <div class="col-md-3">
+          <div class="col-md-2">
             <label class="form-label fw-bold">Plugin</label>
             <select class="form-select" id="tw-plugin">
               {% for name in config.plugin_config.keys() %}
@@ -216,7 +216,11 @@
               {% endfor %}
             </select>
           </div>
-          <div class="col-md-3">
+          <div class="col-md-2">
+            <label class="form-label fw-bold">Template</label>
+            <select class="form-select" id="tw-template"></select>
+          </div>
+          <div class="col-md-2">
             <label class="form-label fw-bold">Check Interval</label>
             <select class="form-select" id="tw-interval">
               <option value="1h">Every hour</option>
@@ -625,6 +629,7 @@ function updateTwYaml() {
     services_include: "${document.getElementById('tw-svc-include').value}"
     policy_decisions: [${decisions.map(d => '"' + d + '"').join(', ')}]
     plugin: ${document.getElementById('tw-plugin').value}
+    template: ${document.getElementById('tw-template').value || 'default.html'}
     interval: ${document.getElementById('tw-interval').value}`;
   document.getElementById('tw-yaml').textContent = yaml;
 }
@@ -645,7 +650,7 @@ function submitTrafficWatcher() {
     services_exclude: document.getElementById('tw-svc-exclude') ? document.getElementById('tw-svc-exclude').value : '',
     policy_decisions: decisions,
     plugin: document.getElementById('tw-plugin').value,
-    template: 'default.html',
+    template: document.getElementById('tw-template').value || 'default.html',
     interval: document.getElementById('tw-interval').value,
     max_results: 500,
   };
@@ -712,8 +717,25 @@ function showToast(title, body, isError) {
   bootstrap.Toast.getOrCreateInstance(el).show();
 }
 
-// Load traffic watchers on page load
-document.addEventListener('DOMContentLoaded', loadTrafficWatchers);
+// Load template dropdown for the traffic watcher builder
+function loadTwTemplates() {
+  fetch('{{ url_for("main.api_list_templates") }}')
+    .then(r => r.json())
+    .then(templates => {
+      const sel = document.getElementById('tw-template');
+      sel.innerHTML = '';
+      templates.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t;
+        opt.textContent = t;
+        if (t === 'default.html') opt.selected = true;
+        sel.appendChild(opt);
+      });
+    });
+}
+
+// Load traffic watchers and templates on page load
+document.addEventListener('DOMContentLoaded', () => { loadTrafficWatchers(); loadTwTemplates(); });
 
 function exportTrafficCSV() {
   if (!allFlows.length) return;
