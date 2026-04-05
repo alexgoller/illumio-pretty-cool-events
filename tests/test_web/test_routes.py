@@ -97,3 +97,38 @@ class TestWebRoutes:
         assert b"How It Works" in response.data
         assert b"Getting Started" in response.data
         assert b"Watcher Matching" in response.data
+
+    def test_api_create_watcher(self, flask_app: Flask, client: FlaskClient) -> None:
+        """POST /api/watchers creates a watcher from JSON."""
+        response = client.post("/api/watchers", json={
+            "pattern": "user.login",
+            "status": "success",
+            "plugin": "PCEStdout",
+            "template": "default.html",
+        })
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["ok"] is True
+        assert data["pattern"] == "user.login"
+        # Verify it was actually added to config
+        config = flask_app.config["APP_CONFIG"]
+        assert "user.login" in config.watchers
+        assert config.watchers["user.login"][-1].plugin == "PCEStdout"
+
+    def test_api_create_watcher_with_match_fields(self, flask_app: Flask, client: FlaskClient) -> None:
+        """POST /api/watchers with match_fields creates an advanced watcher."""
+        response = client.post("/api/watchers", json={
+            "pattern": ".*",
+            "status": "*",
+            "plugin": "PCEStdout",
+            "template": "default.html",
+            "match_fields": {"severity": "err|warning"},
+        })
+        assert response.status_code == 200
+        config = flask_app.config["APP_CONFIG"]
+        last_action = config.watchers[".*"][-1]
+        assert last_action.extra_data["match_fields"]["severity"] == "err|warning"
+
+    def test_api_create_watcher_missing_pattern(self, client: FlaskClient) -> None:
+        response = client.post("/api/watchers", json={"plugin": "PCEStdout"})
+        assert response.status_code == 400

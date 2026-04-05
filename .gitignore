@@ -137,3 +137,5 @@ src/config.yml
 .gpt-runner/*
 backups/
 *.egg-info/
+config-local.yaml
+events.log

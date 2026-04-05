@@ -120,7 +120,7 @@
             <th style="cursor:pointer" onclick="sortTable('status')">Status</th>
             <th style="cursor:pointer" onclick="sortTable('severity')">Severity</th>
             <th>Created By</th>
-            <th>Details</th>
+            <th></th>
           </tr>
         </thead>
         <tbody id="events-body">
@@ -140,15 +140,105 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <pre id="eventModalBody" class="bg-body-tertiary p-3 rounded" style="max-height:60vh; overflow:auto;"></pre>
+        <!-- Event summary card inside modal -->
+        <div class="card mb-3" id="eventModalSummary"></div>
+        <pre id="eventModalBody" class="bg-body-tertiary p-3 rounded" style="max-height:40vh; overflow:auto;"></pre>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-        <button type="button" class="btn btn-primary" onclick="copyEventJSON()">
+        <button type="button" class="btn btn-outline-secondary" onclick="copyEventJSON()">
           <i class="bi bi-clipboard"></i> Copy JSON
+        </button>
+        <button type="button" class="btn btn-primary" id="eventModalWatcherBtn" onclick="openWatcherBuilder(currentEventIndex)">
+          <i class="bi bi-eye"></i> Create Watcher
         </button>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- Watcher builder modal -->
+<div class="modal fade" id="watcherModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title"><i class="bi bi-eye"></i> Create Watcher from Event</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <!-- Source event preview -->
+        <div class="alert alert-light mb-3" id="watcher-source-preview"></div>
+
+        <!-- Pattern selection -->
+        <div class="mb-3">
+          <label class="form-label fw-bold">Event Pattern</label>
+          <div class="form-text mb-2">Choose how broadly to match. Exact matches only this event type; wildcard matches the whole category.</div>
+          <div id="watcher-pattern-options"></div>
+          <div class="mt-2">
+            <label class="form-label small text-muted">Or custom pattern:</label>
+            <input type="text" class="form-control form-control-sm" id="watcher-custom-pattern" placeholder="e.g. user\.(login|logout)">
+          </div>
+        </div>
+
+        <!-- Status -->
+        <div class="row g-3 mb-3">
+          <div class="col-md-4">
+            <label class="form-label fw-bold">Status Filter</label>
+            <select class="form-select" id="watcher-status">
+              <option value="*">Any status (including null)</option>
+              <option value="success">success only</option>
+              <option value="failure">failure only</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-bold">Plugin</label>
+            <select class="form-select" id="watcher-plugin">
+              {% for name in config.plugin_config.keys() %}
+              <option value="{{ name }}">{{ name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-bold">Template</label>
+            <input type="text" class="form-control" id="watcher-template" value="default.html">
+          </div>
+        </div>
+
+        <!-- Advanced field matchers -->
+        <div class="mb-3">
+          <label class="form-label fw-bold">
+            Field Matchers <small class="text-muted fw-normal">(optional - narrow down beyond event type)</small>
+          </label>
+          <div id="watcher-match-fields"></div>
+          <button type="button" class="btn btn-sm btn-outline-secondary mt-2" onclick="addCustomMatchField()">
+            <i class="bi bi-plus"></i> Add custom field
+          </button>
+        </div>
+
+        <!-- YAML preview -->
+        <div class="mb-0">
+          <label class="form-label fw-bold">Config Preview</label>
+          <pre class="bg-body-tertiary p-3 rounded small" id="watcher-yaml-preview" style="max-height:200px; overflow:auto;"></pre>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="submitWatcher()">
+          <i class="bi bi-check-circle"></i> Create Watcher
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast for notifications -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+  <div id="toast" class="toast" role="alert">
+    <div class="toast-header">
+      <strong class="me-auto" id="toast-title">Notification</strong>
+      <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+    </div>
+    <div class="toast-body" id="toast-body"></div>
   </div>
 </div>
 {% endblock %}
@@ -159,33 +249,25 @@ let allEvents = [];
 let filteredEvents = [];
 let sortKey = 'timestamp';
 let sortAsc = false;
+let currentEventIndex = -1;
 
 function applyTimePreset(val) {
   const customSince = document.getElementById('custom-since-group');
   const customUntil = document.getElementById('custom-until-group');
-  if (val === 'custom') {
-    customSince.style.display = '';
-    customUntil.style.display = '';
-  } else {
-    customSince.style.display = 'none';
-    customUntil.style.display = 'none';
-  }
+  if (val === 'custom') { customSince.style.display = ''; customUntil.style.display = ''; }
+  else { customSince.style.display = 'none'; customUntil.style.display = 'none'; }
 }
 
 function fetchEvents() {
   const preset = document.getElementById('time-preset').value;
   const maxResults = document.getElementById('max-results').value;
-
   let params = new URLSearchParams({ max_results: maxResults });
-
   if (preset === 'custom') {
     const since = document.getElementById('custom-since').value;
     const until = document.getElementById('custom-until').value;
     if (since) params.set('since', new Date(since).toISOString());
     if (until) params.set('until', new Date(until).toISOString());
-  } else {
-    params.set('since', preset);
-  }
+  } else { params.set('since', preset); }
 
   document.getElementById('events-body').innerHTML =
     '<tr><td colspan="6" class="text-center p-4"><div class="spinner-border spinner-border-sm"></div> Loading events from PCE...</td></tr>';
@@ -217,11 +299,8 @@ function applyClientFilters() {
 
   filteredEvents = allEvents.filter(e => {
     if (eventType) {
-      try {
-        if (!new RegExp(eventType, 'i').test(e.event_type || '')) return false;
-      } catch {
-        if (!(e.event_type || '').includes(eventType)) return false;
-      }
+      try { if (!new RegExp(eventType, 'i').test(e.event_type || '')) return false; }
+      catch { if (!(e.event_type || '').includes(eventType)) return false; }
     }
     if (status) {
       if (status === 'null') { if (e.status !== null) return false; }
@@ -232,7 +311,6 @@ function applyClientFilters() {
     if (search && !JSON.stringify(e).toLowerCase().includes(search)) return false;
     return true;
   });
-
   sortAndRender();
 }
 
@@ -244,75 +322,264 @@ function sortTable(key) {
 
 function sortAndRender() {
   filteredEvents.sort((a, b) => {
-    let va = a[sortKey] ?? '';
-    let vb = b[sortKey] ?? '';
+    let va = a[sortKey] ?? '', vb = b[sortKey] ?? '';
     if (typeof va === 'string') va = va.toLowerCase();
     if (typeof vb === 'string') vb = vb.toLowerCase();
-    if (va < vb) return sortAsc ? -1 : 1;
-    if (va > vb) return sortAsc ? 1 : -1;
-    return 0;
+    return va < vb ? (sortAsc ? -1 : 1) : va > vb ? (sortAsc ? 1 : -1) : 0;
   });
   renderTable();
 }
 
+function statusBadge(s) {
+  return s === 'success' ? '<span class="badge bg-success">success</span>'
+    : s === 'failure' ? '<span class="badge bg-danger">failure</span>'
+    : '<span class="badge bg-secondary">null</span>';
+}
+
+function sevBadge(s) {
+  return s === 'err' ? '<span class="badge bg-danger">err</span>'
+    : s === 'warning' ? '<span class="badge bg-warning text-dark">warning</span>'
+    : '<span class="badge bg-info text-dark">info</span>';
+}
+
+function creatorText(cb) {
+  if (!cb) return '?';
+  if (cb.user) return '<i class="bi bi-person"></i> ' + (cb.user.username || '?');
+  if (cb.system !== undefined) return '<i class="bi bi-gear"></i> system';
+  if (cb.agent) return '<i class="bi bi-cpu"></i> agent';
+  if (cb.container_cluster) return '<i class="bi bi-box"></i> container';
+  return '?';
+}
+
 function renderTable() {
   const body = document.getElementById('events-body');
-  const summary = document.getElementById('results-summary');
+  document.getElementById('results-summary').textContent =
+    `${filteredEvents.length} events shown (${allEvents.length} fetched from PCE)`;
 
-  summary.textContent = `${filteredEvents.length} events shown (${allEvents.length} fetched from PCE)`;
-
-  if (filteredEvents.length === 0) {
+  if (!filteredEvents.length) {
     body.innerHTML = '<tr><td colspan="6" class="text-center text-muted p-4">No events match the current filters</td></tr>';
     return;
   }
 
   body.innerHTML = filteredEvents.map((e, i) => {
     const ts = e.timestamp ? new Date(e.timestamp).toLocaleString() : '?';
-    const statusBadge = e.status === 'success'
-      ? '<span class="badge bg-success">success</span>'
-      : e.status === 'failure'
-      ? '<span class="badge bg-danger">failure</span>'
-      : '<span class="badge bg-secondary">null</span>';
-
-    const sevBadge = e.severity === 'err'
-      ? '<span class="badge bg-danger">err</span>'
-      : e.severity === 'warning'
-      ? '<span class="badge bg-warning text-dark">warning</span>'
-      : '<span class="badge bg-info text-dark">info</span>';
-
-    let creator = '?';
-    if (e.created_by) {
-      if (e.created_by.user) creator = '<i class="bi bi-person"></i> ' + (e.created_by.user.username || '?');
-      else if (e.created_by.system !== undefined) creator = '<i class="bi bi-gear"></i> system';
-      else if (e.created_by.agent) creator = '<i class="bi bi-cpu"></i> agent';
-      else if (e.created_by.container_cluster) creator = '<i class="bi bi-box"></i> container';
-    }
-
-    let detail = '';
-    if (e.action && e.action.api_endpoint) detail = '<code class="small">' + e.action.api_endpoint + '</code>';
-    else if (e.notifications && e.notifications.length) detail = '<span class="small text-muted">' + e.notifications[0].notification_type + '</span>';
-
-    return `<tr style="cursor:pointer" onclick="showEvent(${i})">
-      <td class="text-nowrap small">${ts}</td>
-      <td><code>${e.event_type}</code></td>
-      <td>${statusBadge}</td>
-      <td>${sevBadge}</td>
-      <td class="small">${creator}</td>
-      <td>${detail}</td>
+    return `<tr>
+      <td class="text-nowrap small" style="cursor:pointer" onclick="showEvent(${i})">${ts}</td>
+      <td style="cursor:pointer" onclick="showEvent(${i})"><code>${e.event_type}</code></td>
+      <td>${statusBadge(e.status)}</td>
+      <td>${sevBadge(e.severity)}</td>
+      <td class="small">${creatorText(e.created_by)}</td>
+      <td class="text-nowrap">
+        <button class="btn btn-sm btn-outline-primary py-0 px-1" onclick="openWatcherBuilder(${i})" title="Create watcher from this event">
+          <i class="bi bi-eye"></i>
+        </button>
+        <button class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="showEvent(${i})" title="View details">
+          <i class="bi bi-code-slash"></i>
+        </button>
+      </td>
     </tr>`;
   }).join('');
 }
 
+// ---- Event detail modal ----
 function showEvent(index) {
+  currentEventIndex = index;
   const e = filteredEvents[index];
-  document.getElementById('eventModalTitle').textContent = e.event_type + ' - ' + (e.timestamp || '');
+  document.getElementById('eventModalTitle').textContent = e.event_type;
+
+  // Build summary card
+  const ts = e.timestamp ? new Date(e.timestamp).toLocaleString() : '?';
+  document.getElementById('eventModalSummary').innerHTML = `
+    <div class="card-body">
+      <div class="row text-center">
+        <div class="col"><small class="text-muted">Time</small><br>${ts}</div>
+        <div class="col"><small class="text-muted">Status</small><br>${statusBadge(e.status)}</div>
+        <div class="col"><small class="text-muted">Severity</small><br>${sevBadge(e.severity)}</div>
+        <div class="col"><small class="text-muted">By</small><br>${creatorText(e.created_by)}</div>
+      </div>
+    </div>`;
+
   document.getElementById('eventModalBody').textContent = JSON.stringify(e, null, 2);
   new bootstrap.Modal(document.getElementById('eventModal')).show();
 }
 
 function copyEventJSON() {
-  const text = document.getElementById('eventModalBody').textContent;
-  navigator.clipboard.writeText(text);
+  navigator.clipboard.writeText(document.getElementById('eventModalBody').textContent);
+  showToast('Copied', 'Event JSON copied to clipboard');
+}
+
+// ---- Watcher builder ----
+function openWatcherBuilder(index) {
+  // Close the detail modal if open
+  const detailModal = bootstrap.Modal.getInstance(document.getElementById('eventModal'));
+  if (detailModal) detailModal.hide();
+
+  const e = filteredEvents[index];
+  const et = e.event_type;
+  const parts = et.split('.');
+  const category = parts[0];
+
+  // Source preview
+  document.getElementById('watcher-source-preview').innerHTML =
+    `<strong>${et}</strong> &mdash; ${statusBadge(e.status)} ${sevBadge(e.severity)} &mdash; ${creatorText(e.created_by)}` +
+    (e.action && e.action.api_endpoint ? `<br><code class="small">${e.action.api_method} ${e.action.api_endpoint}</code>` : '');
+
+  // Pattern options: exact, category wildcard, catch-all
+  document.getElementById('watcher-pattern-options').innerHTML = `
+    <div class="form-check">
+      <input class="form-check-input" type="radio" name="watcher-pattern" id="wp-exact" value="${et}" checked onchange="updateYamlPreview()">
+      <label class="form-check-label" for="wp-exact"><code>${et}</code> <span class="text-muted">- this exact event type</span></label>
+    </div>
+    <div class="form-check">
+      <input class="form-check-input" type="radio" name="watcher-pattern" id="wp-category" value="${category}.*" onchange="updateYamlPreview()">
+      <label class="form-check-label" for="wp-category"><code>${category}.*</code> <span class="text-muted">- all ${category} events</span></label>
+    </div>
+    <div class="form-check">
+      <input class="form-check-input" type="radio" name="watcher-pattern" id="wp-all" value=".*" onchange="updateYamlPreview()">
+      <label class="form-check-label" for="wp-all"><code>.*</code> <span class="text-muted">- all events (catch-all)</span></label>
+    </div>`;
+
+  document.getElementById('watcher-custom-pattern').value = '';
+
+  // Pre-select status from event
+  const statusSel = document.getElementById('watcher-status');
+  if (e.status === 'success') statusSel.value = 'success';
+  else if (e.status === 'failure') statusSel.value = 'failure';
+  else statusSel.value = '*';
+
+  // Build suggested match fields from the event's interesting fields
+  const matchFieldsDiv = document.getElementById('watcher-match-fields');
+  matchFieldsDiv.innerHTML = '';
+
+  const suggestions = [];
+  if (e.severity && e.severity !== 'info') {
+    suggestions.push({ field: 'severity', value: e.severity, hint: 'only ' + e.severity + ' severity' });
+  }
+  if (e.created_by) {
+    if (e.created_by.user && e.created_by.user.username) {
+      suggestions.push({ field: 'created_by.user.username', value: e.created_by.user.username, hint: 'only this user' });
+    }
+    const cbType = Object.keys(e.created_by)[0];
+    if (cbType) {
+      suggestions.push({ field: 'created_by_type', value: cbType, hint: 'only ' + cbType + ' actors', virtual: true });
+    }
+  }
+  if (e.action && e.action.src_ip && e.action.src_ip !== 'FILTERED') {
+    suggestions.push({ field: 'action.src_ip', value: e.action.src_ip, hint: 'only from this IP' });
+  }
+
+  suggestions.forEach((s, idx) => {
+    matchFieldsDiv.innerHTML += `
+      <div class="form-check d-flex align-items-center mb-2" id="mf-row-${idx}">
+        <input class="form-check-input me-2 mt-0" type="checkbox" id="mf-${idx}" onchange="updateYamlPreview()"
+               data-field="${s.field}" data-value="${s.value}" ${s.virtual ? 'data-virtual="1"' : ''}>
+        <code class="me-2">${s.field}</code>
+        <span class="me-2">=</span>
+        <input type="text" class="form-control form-control-sm me-2" style="max-width:200px"
+               value="${s.value}" id="mf-val-${idx}" oninput="updateYamlPreview()">
+        <small class="text-muted">${s.hint}</small>
+      </div>`;
+  });
+
+  // Wire up change handlers
+  document.querySelectorAll('#watcher-status, #watcher-plugin, #watcher-template, #watcher-custom-pattern').forEach(el => {
+    el.onchange = updateYamlPreview;
+    el.oninput = updateYamlPreview;
+  });
+
+  updateYamlPreview();
+  new bootstrap.Modal(document.getElementById('watcherModal')).show();
+}
+
+function addCustomMatchField() {
+  const div = document.getElementById('watcher-match-fields');
+  const idx = div.children.length + 100;
+  div.innerHTML += `
+    <div class="d-flex align-items-center mb-2">
+      <input class="form-check-input me-2 mt-0" type="checkbox" id="mf-${idx}" checked onchange="updateYamlPreview()"
+             data-field="" data-value="">
+      <input type="text" class="form-control form-control-sm me-2" style="max-width:180px"
+             placeholder="field.path" id="mf-field-${idx}" oninput="updateYamlPreview()">
+      <span class="me-2">=</span>
+      <input type="text" class="form-control form-control-sm me-2" style="max-width:180px"
+             placeholder="value or regex" id="mf-val-${idx}" oninput="updateYamlPreview()">
+      <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="this.parentElement.remove(); updateYamlPreview()">
+        <i class="bi bi-x"></i>
+      </button>
+    </div>`;
+  updateYamlPreview();
+}
+
+function getWatcherConfig() {
+  // Pattern
+  let pattern = document.getElementById('watcher-custom-pattern').value.trim();
+  if (!pattern) {
+    const checked = document.querySelector('input[name="watcher-pattern"]:checked');
+    pattern = checked ? checked.value : '.*';
+  }
+
+  const status = document.getElementById('watcher-status').value;
+  const plugin = document.getElementById('watcher-plugin').value;
+  const template = document.getElementById('watcher-template').value || 'default.html';
+
+  // Collect checked match fields
+  const matchFields = {};
+  document.querySelectorAll('#watcher-match-fields input[type="checkbox"]').forEach(cb => {
+    if (!cb.checked) return;
+    let field = cb.dataset.field;
+    const valInput = document.getElementById(cb.id.replace('mf-', 'mf-val-'));
+    const fieldInput = document.getElementById(cb.id.replace('mf-', 'mf-field-'));
+    if (fieldInput && fieldInput.value) field = fieldInput.value;
+    const value = valInput ? valInput.value : cb.dataset.value;
+    if (field && value && !cb.dataset.virtual) {
+      matchFields[field] = value;
+    }
+  });
+
+  return { pattern, status, plugin, template, match_fields: matchFields };
+}
+
+function updateYamlPreview() {
+  const cfg = getWatcherConfig();
+  let yaml = `watchers:\n  "${cfg.pattern}":\n    - status: "${cfg.status}"\n      plugin: ${cfg.plugin}\n      extra_data:\n        template: ${cfg.template}`;
+  if (Object.keys(cfg.match_fields).length) {
+    yaml += '\n        match_fields:';
+    for (const [k, v] of Object.entries(cfg.match_fields)) {
+      yaml += `\n          ${k}: "${v}"`;
+    }
+  }
+  document.getElementById('watcher-yaml-preview').textContent = yaml;
+}
+
+function submitWatcher() {
+  const cfg = getWatcherConfig();
+
+  fetch('{{ url_for("main.api_create_watcher") }}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(cfg),
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        bootstrap.Modal.getInstance(document.getElementById('watcherModal')).hide();
+        showToast('Watcher Created',
+          `<code>${cfg.pattern}</code> &rarr; <strong>${cfg.plugin}</strong><br>
+           <a href="{{ url_for('main.watchers_page') }}">View all watchers</a>`);
+      } else {
+        showToast('Error', data.error || 'Failed to create watcher', true);
+      }
+    })
+    .catch(err => showToast('Error', String(err), true));
+}
+
+// ---- Utilities ----
+function showToast(title, body, isError) {
+  document.getElementById('toast-title').textContent = title;
+  document.getElementById('toast-body').innerHTML = body;
+  const toastEl = document.getElementById('toast');
+  toastEl.classList.toggle('text-bg-danger', !!isError);
+  bootstrap.Toast.getOrCreateInstance(toastEl).show();
 }
 
 function clearFilters() {

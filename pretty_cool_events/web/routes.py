@@ -61,7 +61,7 @@ def statistics() -> str:
 @bp.route("/events")
 def events_page() -> str:
     """Event explorer - browse historical PCE events with filtering."""
-    return render_template("events.html", event_types=load_event_types())
+    return render_template("events.html", event_types=load_event_types(), config=_get_config())
 
 
 @bp.route("/plugins", methods=["GET", "POST"])
@@ -342,6 +342,44 @@ def delete_watcher() -> str:
             flash(f"Watcher removed: {pattern}", "success")
 
     return redirect(url_for("main.watchers_page"))
+
+
+@bp.route("/api/watchers", methods=["POST"])
+def api_create_watcher() -> Any:
+    """Create a watcher from JSON. Used by the event explorer's 'Create Watcher' flow."""
+    config = _get_config()
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No JSON body"}), 400
+
+    pattern = data.get("pattern", "")
+    if not pattern:
+        return jsonify({"error": "pattern is required"}), 400
+
+    extra_data: dict[str, Any] = {}
+    if data.get("template"):
+        extra_data["template"] = data["template"]
+    if data.get("match_fields"):
+        extra_data["match_fields"] = data["match_fields"]
+    # Pass through any extra keys (channel, email_to, phone_number, etc.)
+    for key in ("channel", "email_to", "phone_number"):
+        if data.get(key):
+            extra_data[key] = data[key]
+
+    action = WatcherAction(
+        status=data.get("status", "*"),
+        severity=data.get("severity", "info"),
+        plugin=data.get("plugin", "PCEStdout"),
+        extra_data=extra_data,
+    )
+
+    if pattern in config.watchers:
+        config.watchers[pattern].append(action)
+    else:
+        config.watchers[pattern] = [action]
+
+    logger.info("Watcher created via API: %s -> %s", pattern, action.plugin)
+    return jsonify({"ok": True, "pattern": pattern, "plugin": action.plugin})
 
 
 @bp.route("/api/stats")
