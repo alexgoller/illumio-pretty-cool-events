@@ -382,6 +382,64 @@ def api_create_watcher() -> Any:
     return jsonify({"ok": True, "pattern": pattern, "plugin": action.plugin})
 
 
+@bp.route("/api/render", methods=["POST"])
+def api_render_template() -> Any:
+    """Render an event through a template. Returns the rendered output."""
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No JSON body"}), 400
+
+    event_data = data.get("event")
+    template_name = data.get("template", "default.html")
+    if not event_data:
+        return jsonify({"error": "event is required"}), 400
+
+    config = _get_config()
+    template_globals = {
+        "pce_fqdn": config.pce.pce,
+        "pce_org": config.pce.pce_org,
+    }
+
+    import importlib.resources
+
+    from jinja2 import Environment, FileSystemLoader, select_autoescape
+
+    template_dir = str(importlib.resources.files("pretty_cool_events") / "templates")
+    env = Environment(
+        loader=FileSystemLoader(template_dir),
+        autoescape=select_autoescape(["html", "xml"]),
+    )
+    env.filters["json_filter"] = lambda v: __import__("json").dumps(
+        v, indent=4, sort_keys=True, ensure_ascii=True
+    )
+
+    try:
+        tmpl = env.get_template(template_name)
+        context: dict[str, Any] = {}
+        context.update(template_globals)
+        context.update(event_data)
+        context["event"] = event_data
+        rendered = tmpl.render(**context)
+        return jsonify({"rendered": rendered, "template": template_name})
+    except Exception as e:
+        return jsonify({"error": str(e), "template": template_name}), 400
+
+
+@bp.route("/api/templates")
+def api_list_templates() -> Any:
+    """List available output templates."""
+    import importlib.resources
+
+    template_dir = importlib.resources.files("pretty_cool_events") / "templates"
+    templates = []
+    for item in template_dir.iterdir():
+        name = item.name
+        if name.startswith("_"):
+            continue
+        templates.append(name)
+    return jsonify(sorted(templates))
+
+
 @bp.route("/api/stats")
 def api_stats() -> Any:
     return jsonify(_get_stats().snapshot())

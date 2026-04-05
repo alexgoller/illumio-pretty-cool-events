@@ -133,23 +133,60 @@
 
 <!-- Event detail modal -->
 <div class="modal fade" id="eventModal" tabindex="-1">
-  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="eventModalTitle">Event Details</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <!-- Event summary card inside modal -->
+        <!-- Event summary card -->
         <div class="card mb-3" id="eventModalSummary"></div>
-        <pre id="eventModalBody" class="bg-body-tertiary p-3 rounded" style="max-height:40vh; overflow:auto;"></pre>
+
+        <!-- Tabs: JSON / Template Preview -->
+        <ul class="nav nav-tabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-json" type="button">
+              <i class="bi bi-code-slash"></i> JSON
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-preview" type="button" onclick="loadTemplateList()">
+              <i class="bi bi-brush"></i> Template Preview
+            </button>
+          </li>
+        </ul>
+        <div class="tab-content">
+          <!-- JSON tab -->
+          <div class="tab-pane fade show active p-3" id="tab-json" role="tabpanel">
+            <pre id="eventModalBody" class="bg-body-tertiary p-3 rounded mb-0" style="max-height:50vh; overflow:auto;"></pre>
+          </div>
+          <!-- Template preview tab -->
+          <div class="tab-pane fade p-3" id="tab-preview" role="tabpanel">
+            <div class="d-flex align-items-center gap-2 mb-3">
+              <select class="form-select form-select-sm" style="max-width:260px" id="preview-template" onchange="renderPreview()">
+                <option value="">Select a template...</option>
+              </select>
+              <button class="btn btn-sm btn-outline-primary" onclick="renderPreview()">
+                <i class="bi bi-arrow-clockwise"></i> Render
+              </button>
+              <div class="form-check form-switch ms-auto mb-0">
+                <input class="form-check-input" type="checkbox" id="preview-html-toggle" checked onchange="togglePreviewMode()">
+                <label class="form-check-label small" for="preview-html-toggle">Render HTML</label>
+              </div>
+            </div>
+            <div id="preview-output" style="max-height:55vh; overflow:auto; border:1px solid #dee2e6; border-radius:6px;">
+              <div class="text-center text-muted p-4">Pick a template above to see how this event renders</div>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
         <button type="button" class="btn btn-outline-secondary" onclick="copyEventJSON()">
           <i class="bi bi-clipboard"></i> Copy JSON
         </button>
-        <button type="button" class="btn btn-primary" id="eventModalWatcherBtn" onclick="openWatcherBuilder(currentEventIndex)">
+        <button type="button" class="btn btn-primary" onclick="openWatcherBuilder(currentEventIndex)">
           <i class="bi bi-eye"></i> Create Watcher
         </button>
       </div>
@@ -406,6 +443,79 @@ function showEvent(index) {
 function copyEventJSON() {
   navigator.clipboard.writeText(document.getElementById('eventModalBody').textContent);
   showToast('Copied', 'Event JSON copied to clipboard');
+}
+
+// ---- Template preview ----
+let templateListLoaded = false;
+
+function loadTemplateList() {
+  if (templateListLoaded) return;
+  fetch('{{ url_for("main.api_list_templates") }}')
+    .then(r => r.json())
+    .then(templates => {
+      const sel = document.getElementById('preview-template');
+      sel.innerHTML = '<option value="">Select a template...</option>';
+      templates.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t;
+        opt.textContent = t;
+        // Pre-select email-full for a good first impression
+        if (t === 'email-full.html') opt.selected = true;
+        sel.appendChild(opt);
+      });
+      templateListLoaded = true;
+      // Auto-render if we pre-selected one
+      if (sel.value) renderPreview();
+    });
+}
+
+function renderPreview() {
+  const template = document.getElementById('preview-template').value;
+  const output = document.getElementById('preview-output');
+  if (!template || currentEventIndex < 0) {
+    output.innerHTML = '<div class="text-center text-muted p-4">Pick a template above</div>';
+    return;
+  }
+
+  output.innerHTML = '<div class="text-center p-4"><div class="spinner-border spinner-border-sm"></div> Rendering...</div>';
+
+  fetch('{{ url_for("main.api_render_template") }}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ event: filteredEvents[currentEventIndex], template: template }),
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) {
+        output.innerHTML = `<div class="p-3 text-danger"><strong>Render error:</strong> ${data.error}</div>`;
+        return;
+      }
+      const renderHtml = document.getElementById('preview-html-toggle').checked;
+      const isHtml = template.endsWith('.html') || template.endsWith('.tmpl');
+      if (renderHtml && isHtml) {
+        output.innerHTML = `<div class="p-0"><iframe id="preview-iframe" style="width:100%;border:none;min-height:400px;" srcdoc="${data.rendered.replace(/"/g, '&quot;')}"></iframe></div>`;
+        // Auto-resize iframe to content
+        const iframe = document.getElementById('preview-iframe');
+        iframe.onload = () => {
+          try { iframe.style.height = iframe.contentDocument.body.scrollHeight + 20 + 'px'; } catch(e) {}
+        };
+      } else {
+        output.innerHTML = `<pre class="p-3 mb-0" style="white-space:pre-wrap;word-break:break-all;">${escapeHtml(data.rendered)}</pre>`;
+      }
+    })
+    .catch(err => {
+      output.innerHTML = `<div class="p-3 text-danger">Error: ${err}</div>`;
+    });
+}
+
+function togglePreviewMode() {
+  if (document.getElementById('preview-template').value) renderPreview();
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
 }
 
 // ---- Watcher builder ----

@@ -132,3 +132,64 @@ class TestWebRoutes:
     def test_api_create_watcher_missing_pattern(self, client: FlaskClient) -> None:
         response = client.post("/api/watchers", json={"plugin": "PCEStdout"})
         assert response.status_code == 400
+
+    def test_api_render_template(self, client: FlaskClient) -> None:
+        """POST /api/render renders an event through a template."""
+        response = client.post("/api/render", json={
+            "event": {
+                "event_type": "user.login",
+                "status": "success",
+                "severity": "info",
+                "timestamp": "2026-01-01T00:00:00Z",
+                "pce_fqdn": "test.example.com",
+                "href": "/orgs/1/events/test",
+                "created_by": {"user": {"username": "admin"}},
+            },
+            "template": "default.html",
+        })
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "rendered" in data
+        assert "user.login" in data["rendered"]
+        assert data["template"] == "default.html"
+
+    def test_api_render_template_email_full(self, client: FlaskClient) -> None:
+        """email-full.html renders with all sections."""
+        response = client.post("/api/render", json={
+            "event": {
+                "event_type": "rule_set.create",
+                "status": "success",
+                "severity": "info",
+                "timestamp": "2026-01-01T00:00:00Z",
+                "pce_fqdn": "pce.example.com",
+                "href": "/orgs/1/events/123",
+                "created_by": {"user": {"username": "admin@example.com"}},
+                "action": {"api_endpoint": "/api/v2/orgs/1/rule_sets", "api_method": "POST",
+                           "http_status_code": 201, "src_ip": "10.0.0.1"},
+                "resource_changes": [],
+                "notifications": [],
+            },
+            "template": "email-full.html",
+        })
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "rule_set.create" in data["rendered"]
+        assert "admin@example.com" in data["rendered"]
+        assert "API Action" in data["rendered"]
+
+    def test_api_render_bad_template(self, client: FlaskClient) -> None:
+        response = client.post("/api/render", json={
+            "event": {"event_type": "test"},
+            "template": "nonexistent.html",
+        })
+        assert response.status_code == 400
+
+    def test_api_list_templates(self, client: FlaskClient) -> None:
+        response = client.get("/api/templates")
+        assert response.status_code == 200
+        templates = response.get_json()
+        assert isinstance(templates, list)
+        assert "default.html" in templates
+        assert "email-full.html" in templates
+        # _macros.html should be excluded (starts with _)
+        assert "_macros.html" not in templates
