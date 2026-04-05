@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+
+{% block title %}Guide{% endblock %}
+
+{% block content %}
+<h2 class="mb-4"><i class="bi bi-book"></i> How It Works</h2>
+
+<div class="row mb-5">
+  <div class="col-lg-8">
+    <!-- Overview -->
+    <div class="card mb-4">
+      <div class="card-body">
+        <h4>Overview</h4>
+        <p>
+          <strong>Pretty Cool Events</strong> continuously monitors your Illumio PCE for
+          audit events and routes them to notification channels. It polls the PCE Events API
+          at a configurable interval, matches each event against your watcher rules, and
+          dispatches matched events to one or more plugins.
+        </p>
+        <div class="bg-body-tertiary rounded p-3 text-center">
+          <code class="fs-6">
+            Illumio PCE &rarr; Event Polling &rarr; Watcher Matching &rarr; Plugin Dispatch &rarr; Notifications
+          </code>
+        </div>
+      </div>
+    </div>
+
+    <!-- Setup steps -->
+    <div class="card mb-4">
+      <div class="card-body">
+        <h4>Getting Started</h4>
+        <div class="list-group list-group-flush">
+          <div class="list-group-item">
+            <div class="d-flex align-items-start">
+              <span class="badge bg-primary rounded-pill me-3 mt-1">1</span>
+              <div>
+                <h6 class="mb-1">Configure PCE Connection</h6>
+                <p class="mb-0 text-muted">
+                  Go to <a href="{{ url_for('main.config_page') }}">Configuration</a> and enter
+                  your PCE hostname, API credentials, and organization ID. The poll interval
+                  controls how frequently events are fetched (default: 10 seconds).
+                </p>
+              </div>
+            </div>
+          </div>
+          <div class="list-group-item">
+            <div class="d-flex align-items-start">
+              <span class="badge bg-primary rounded-pill me-3 mt-1">2</span>
+              <div>
+                <h6 class="mb-1">Enable and Configure Plugins</h6>
+                <p class="mb-0 text-muted">
+                  Go to <a href="{{ url_for('main.plugins_page') }}">Plugins</a> and enable the
+                  notification channels you want (Slack, Email, PagerDuty, etc.).
+                  Each plugin has its own credentials and settings.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div class="list-group-item">
+            <div class="d-flex align-items-start">
+              <span class="badge bg-primary rounded-pill me-3 mt-1">3</span>
+              <div>
+                <h6 class="mb-1">Create Watchers</h6>
+                <p class="mb-0 text-muted">
+                  Go to <a href="{{ url_for('main.watchers_page') }}">Watchers</a> and define
+                  which events trigger which plugins. Use exact event types, wildcards
+                  (<code>user.*</code>), or catch-all (<code>.*</code>).
+                </p>
+              </div>
+            </div>
+          </div>
+          <div class="list-group-item">
+            <div class="d-flex align-items-start">
+              <span class="badge bg-primary rounded-pill me-3 mt-1">4</span>
+              <div>
+                <h6 class="mb-1">Monitor</h6>
+                <p class="mb-0 text-muted">
+                  Use the <a href="{{ url_for('main.index') }}">Dashboard</a> and
+                  <a href="{{ url_for('main.statistics') }}">Statistics</a> to track
+                  event flow. Use the <a href="{{ url_for('main.events_page') }}">Event Explorer</a>
+                  to browse historical events and fine-tune your watchers.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Watchers explained -->
+    <div class="card mb-4">
+      <div class="card-body">
+        <h4>Watcher Matching</h4>
+        <p>Each watcher has an <strong>event pattern</strong> and one or more <strong>actions</strong>. When a PCE event arrives:</p>
+        <ol>
+          <li><strong>Pattern match</strong> &mdash; The event type is checked against exact patterns first (O(1) lookup), then regex patterns.</li>
+          <li><strong>Status filter</strong> &mdash; The event status is checked. Use <code>*</code> to match any status (including null).</li>
+          <li><strong>Field matching</strong> &mdash; If the watcher has <code>match_fields</code>, each named field is checked against the event.</li>
+          <li><strong>Dispatch</strong> &mdash; Matched events are rendered through a template and sent to the configured plugin.</li>
+        </ol>
+
+        <h5 class="mt-4">Pattern Examples</h5>
+        <div class="table-responsive">
+          <table class="table table-sm">
+            <thead><tr><th>Pattern</th><th>Matches</th></tr></thead>
+            <tbody>
+              <tr><td><code>user.login</code></td><td>Exactly <code>user.login</code> events</td></tr>
+              <tr><td><code>user.*</code></td><td>All user events (login, logout, create, etc.)</td></tr>
+              <tr><td><code>rule_set.*</code></td><td>Rule set create, update, delete</td></tr>
+              <tr><td><code>agent.*</code></td><td>All agent events (activate, tampering, etc.)</td></tr>
+              <tr><td><code>request.*</code></td><td>Authentication failures, server errors</td></tr>
+              <tr><td><code>.*</code></td><td>Every event (catch-all)</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h5 class="mt-4">Status Matching</h5>
+        <div class="table-responsive">
+          <table class="table table-sm">
+            <thead><tr><th>Value</th><th>Behavior</th></tr></thead>
+            <tbody>
+              <tr><td><code>success</code></td><td>Only successful events</td></tr>
+              <tr><td><code>failure</code></td><td>Only failed events</td></tr>
+              <tr><td><code>*</code> or <code>any</code></td><td>All events regardless of status (including null)</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h5 class="mt-4">Advanced: Field Matching</h5>
+        <p>Add <code>match_fields</code> to a watcher's <code>extra_data</code> to filter on any event field using dot notation:</p>
+        <pre class="bg-body-tertiary p-3 rounded"><code>watchers:
+  ".*":
+    - status: "*"
+      plugin: PCESlack
+      extra_data:
+        template: default-slack.html
+        channel: "#security-alerts"
+        match_fields:
+          severity: "err|warning"              # err OR warning
+          created_by.user.username: "admin@.*"  # regex on nested field
+          severity: "!info"                     # NOT info</code></pre>
+        <p class="small text-muted">
+          Supported operators: exact match, <code>*</code> (any), <code>!</code> (negation),
+          <code>|</code> (alternatives), regex patterns, and dot-notation for nested fields.
+        </p>
+      </div>
+    </div>
+
+    <!-- Templates explained -->
+    <div class="card mb-4">
+      <div class="card-body">
+        <h4>Templates</h4>
+        <p>
+          Events are formatted using <a href="https://jinja.palletsprojects.com/" target="_blank">Jinja2</a>
+          templates before being sent to plugins. Each watcher can specify a different template.
+        </p>
+        <div class="table-responsive">
+          <table class="table table-sm">
+            <thead><tr><th>Template</th><th>Format</th><th>Best for</th></tr></thead>
+            <tbody>
+              <tr><td><code>default.html</code></td><td>Plain text</td><td>Console, general use</td></tr>
+              <tr><td><code>default-slack.html</code></td><td>Slack Block Kit JSON</td><td>Slack messages</td></tr>
+              <tr><td><code>default-json.html</code></td><td>JSON</td><td>File logging, webhooks</td></tr>
+              <tr><td><code>email.tmpl</code></td><td>HTML</td><td>Email notifications</td></tr>
+              <tr><td><code>sms.tmpl</code></td><td>Short text</td><td>SMS / PagerDuty</td></tr>
+              <tr><td><code>default-teams.tmpl</code></td><td>Markdown</td><td>Microsoft Teams</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="small text-muted">
+          Templates have access to all event fields as top-level variables
+          (e.g. <code>{{ "{{ event_type }}" }}</code>) and also as a nested <code>event</code>
+          object (e.g. <code>{{ "{{ event.created_by.user.username }}" }}</code>).
+        </p>
+      </div>
+    </div>
+
+    <!-- CLI reference -->
+    <div class="card mb-4">
+      <div class="card-body">
+        <h4>CLI Reference</h4>
+        <pre class="bg-body-tertiary p-3 rounded"><code>pce-events run --config config.yaml          # Start the service
+pce-events config init                        # Create a new config interactively
+pce-events config validate --config config.yaml  # Validate config
+pce-events config show --config config.yaml   # Show config (secrets masked)
+pce-events watcher list --config config.yaml  # List all watchers
+pce-events watcher add --config config.yaml   # Add a watcher interactively
+pce-events test-plugin PCEStdout --config config.yaml  # Test a plugin</code></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sidebar: PCE event categories -->
+  <div class="col-lg-4">
+    <div class="card mb-4 sticky-lg-top" style="top: 1rem;">
+      <div class="card-header">PCE Event Categories</div>
+      <div class="card-body p-0">
+        <div class="list-group list-group-flush small" style="max-height: 60vh; overflow-y: auto;">
+          {% set categories = {} %}
+          {% for et in event_types %}
+            {% set cat = et.split('.')[0] %}
+            {% if cat not in categories %}
+              {% if categories.update({cat: []}) %}{% endif %}
+            {% endif %}
+            {% if categories[cat].append(et) %}{% endif %}
+          {% endfor %}
+          {% for cat, types in categories.items() %}
+          <div class="list-group-item">
+            <div class="d-flex justify-content-between">
+              <strong>{{ cat }}.*</strong>
+              <span class="badge bg-secondary rounded-pill">{{ types | length }}</span>
+            </div>
+            <div class="text-muted mt-1">
+              {% for t in types[:5] %}
+                <code class="small">{{ t }}</code>{% if not loop.last %}, {% endif %}
+              {% endfor %}
+              {% if types | length > 5 %}
+                <span class="text-muted">&hellip; +{{ types | length - 5 }} more</span>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

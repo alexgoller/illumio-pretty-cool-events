@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+  <div class="col-md-3">
+    <div class="card stat-card text-center">
+      <div class="card-body">
+        <div class="stat-value text-primary" id="events-received">{{ stats.events_received }}</div>
+        <div class="text-muted">Events Received</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card text-center">
+      <div class="card-body">
+        <div class="stat-value text-success" id="events-matched">{{ stats.events_matched }}</div>
+        <div class="text-muted">Events Matched</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card text-center">
+      <div class="card-body">
+        <div class="stat-value text-info">{{ stats.plugin_stats | length }}</div>
+        <div class="text-muted">Active Plugins</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card text-center">
+      <div class="card-body">
+        <div class="stat-value text-warning">{{ stats.event_stats | length }}</div>
+        <div class="text-muted">Event Types Seen</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-md-6">
+    <div class="card mb-4">
+      <div class="card-header"><i class="bi bi-server"></i> PCE Connection</div>
+      <div class="card-body">
+        <table class="table table-sm mb-0">
+          <tr><td class="text-muted">PCE</td><td><code>{{ config.pce.pce }}</code></td></tr>
+          <tr><td class="text-muted">Organization</td><td>{{ config.pce.pce_org }}</td></tr>
+          <tr><td class="text-muted">Poll Interval</td><td>{{ config.pce.pce_poll_interval }}s</td></tr>
+          <tr><td class="text-muted">Web UI</td><td>{{ "Enabled" if config.httpd.enabled else "Disabled" }}</td></tr>
+          <tr><td class="text-muted">Traffic Worker</td><td>{{ "Enabled" if config.traffic_worker else "Disabled" }}</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card mb-4">
+      <div class="card-header"><i class="bi bi-plug"></i> Plugin Activity</div>
+      <div class="card-body">
+        {% if stats.plugin_stats %}
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Plugin</th><th>Events Processed</th></tr></thead>
+          <tbody>
+            {% for plugin, count in stats.plugin_stats.items() %}
+            <tr><td>{{ plugin }}</td><td><span class="badge bg-primary">{{ count }}</span></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="text-muted mb-0">No events processed yet.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header"><i class="bi bi-list-task"></i> Recent Event Types</div>
+      <div class="card-body">
+        {% if stats.event_stats %}
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0">
+            <thead><tr><th>Event Type</th><th>Count</th></tr></thead>
+            <tbody>
+              {% for event_type, count in stats.event_stats.items() %}
+              <tr><td><code>{{ event_type }}</code></td><td>{{ count }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">No events received yet. Waiting for PCE events...</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Auto-refresh stats every 10 seconds
+setInterval(function() {
+  fetch('{{ url_for("main.api_stats") }}')
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('events-received').textContent = data.events_received;
+      document.getElementById('events-matched').textContent = data.events_matched;
+    })
+    .catch(() => {});
+}, 10000);
+</script>
+{% endblock %}

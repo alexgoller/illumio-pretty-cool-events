@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Configuration{% endblock %}
+
+{% block content %}
+<h2 class="mb-4"><i class="bi bi-gear"></i> PCE Configuration</h2>
+
+<form method="POST" action="{{ url_for('main.config_page') }}">
+  <div class="card mb-4">
+    <div class="card-header">PCE Connection</div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label for="pce" class="form-label">PCE Hostname</label>
+          <input type="text" class="form-control" id="pce" name="pce" value="{{ config.pce.pce }}">
+          <div class="form-text">Fully qualified domain name of the PCE (e.g. pce.example.com:8443).</div>
+        </div>
+        <div class="col-md-6">
+          <label for="pce_api_user" class="form-label">API User</label>
+          <input type="text" class="form-control" id="pce_api_user" name="pce_api_user" value="{{ config.pce.pce_api_user }}">
+          <div class="form-text">API key identifier (starts with api_).</div>
+        </div>
+        <div class="col-md-4">
+          <label for="pce_org" class="form-label">Organization ID</label>
+          <input type="number" class="form-control" id="pce_org" name="pce_org" value="{{ config.pce.pce_org }}">
+        </div>
+        <div class="col-md-4">
+          <label for="pce_poll_interval" class="form-label">Poll Interval (s)</label>
+          <input type="number" class="form-control" id="pce_poll_interval" name="pce_poll_interval" value="{{ config.pce.pce_poll_interval }}">
+          <div class="form-text">How often to check for new events.</div>
+        </div>
+        <div class="col-md-4">
+          <label for="pce_traffic_interval" class="form-label">Traffic Interval (s)</label>
+          <input type="number" class="form-control" id="pce_traffic_interval" name="pce_traffic_interval" value="{{ config.pce.pce_traffic_interval }}">
+        </div>
+        <div class="col-12">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="httpd" name="httpd" {% if config.httpd.enabled %}checked{% endif %}>
+            <label class="form-check-label" for="httpd">Enable Web UI</label>
+          </div>
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="traffic_worker" name="traffic_worker" {% if config.traffic_worker %}checked{% endif %}>
+            <label class="form-check-label" for="traffic_worker">Enable Traffic Worker</label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Save Configuration</button>
+</form>
+
+<div class="mt-4">
+  <a href="{{ url_for('main.plugins_page') }}" class="btn btn-outline-secondary">
+    <i class="bi bi-plug"></i> Configure Plugins
+  </a>
+  <a href="{{ url_for('main.watchers_page') }}" class="btn btn-outline-secondary">
+    <i class="bi bi-eye"></i> Manage Watchers
+  </a>
+</div>
+{% endblock %}

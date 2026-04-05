@@ -1,0 +1,349 @@
+{% extends "base.html" %}
+
+{% block title %}Event Explorer{% endblock %}
+
+{% block content %}
+<h2 class="mb-4"><i class="bi bi-clock-history"></i> Event Explorer</h2>
+
+<!-- Time range controls -->
+<div class="card mb-4">
+  <div class="card-body">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-2">
+        <label class="form-label">Time Range</label>
+        <select class="form-select" id="time-preset" onchange="applyTimePreset(this.value)">
+          <option value="1h">Last 1 hour</option>
+          <option value="6h">Last 6 hours</option>
+          <option value="24h" selected>Last 24 hours</option>
+          <option value="3d">Last 3 days</option>
+          <option value="7d">Last 7 days</option>
+          <option value="14d">Last 14 days</option>
+          <option value="30d">Last 30 days</option>
+          <option value="custom">Custom range</option>
+        </select>
+      </div>
+      <div class="col-md-3" id="custom-since-group" style="display:none;">
+        <label class="form-label">From</label>
+        <input type="datetime-local" class="form-control" id="custom-since">
+      </div>
+      <div class="col-md-3" id="custom-until-group" style="display:none;">
+        <label class="form-label">To</label>
+        <input type="datetime-local" class="form-control" id="custom-until">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Max Results</label>
+        <select class="form-select" id="max-results">
+          <option value="100">100</option>
+          <option value="250">250</option>
+          <option value="500" selected>500</option>
+          <option value="1000">1000</option>
+        </select>
+      </div>
+      <div class="col-md-auto">
+        <button class="btn btn-primary" onclick="fetchEvents()">
+          <i class="bi bi-search"></i> Fetch Events
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-funnel"></i> Filters</span>
+    <button class="btn btn-sm btn-outline-secondary" onclick="clearFilters()">Clear All</button>
+  </div>
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-md-3">
+        <label class="form-label">Event Type <small class="text-muted">(regex)</small></label>
+        <input type="text" class="form-control" id="filter-event-type" placeholder="e.g. user.* or rule_set" oninput="applyClientFilters()">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Status</label>
+        <select class="form-select" id="filter-status" onchange="applyClientFilters()">
+          <option value="">All</option>
+          <option value="success">success</option>
+          <option value="failure">failure</option>
+          <option value="null">null</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Severity</label>
+        <select class="form-select" id="filter-severity" onchange="applyClientFilters()">
+          <option value="">All</option>
+          <option value="info">info</option>
+          <option value="warning">warning</option>
+          <option value="err">err</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Created By</label>
+        <select class="form-select" id="filter-created-by" onchange="applyClientFilters()">
+          <option value="">All</option>
+          <option value="user">User</option>
+          <option value="system">System</option>
+          <option value="agent">Agent</option>
+          <option value="container_cluster">Container</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Search <small class="text-muted">(all fields)</small></label>
+        <input type="text" class="form-control" id="filter-search" placeholder="Free text search..." oninput="applyClientFilters()">
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Results summary -->
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <span id="results-summary" class="text-muted">No events loaded</span>
+  </div>
+  <div>
+    <button class="btn btn-sm btn-outline-secondary" onclick="exportCSV()" id="btn-export" disabled>
+      <i class="bi bi-download"></i> Export CSV
+    </button>
+  </div>
+</div>
+
+<!-- Events table -->
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive" style="max-height: 70vh; overflow-y: auto;">
+      <table class="table table-sm table-hover table-striped mb-0" id="events-table">
+        <thead class="sticky-top bg-body-tertiary">
+          <tr>
+            <th style="cursor:pointer" onclick="sortTable('timestamp')">Timestamp <i class="bi bi-arrow-down-up"></i></th>
+            <th style="cursor:pointer" onclick="sortTable('event_type')">Event Type <i class="bi bi-arrow-down-up"></i></th>
+            <th style="cursor:pointer" onclick="sortTable('status')">Status</th>
+            <th style="cursor:pointer" onclick="sortTable('severity')">Severity</th>
+            <th>Created By</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody id="events-body">
+          <tr><td colspan="6" class="text-center text-muted p-4">Select a time range and click <strong>Fetch Events</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Event detail modal -->
+<div class="modal fade" id="eventModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="eventModalTitle">Event Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <pre id="eventModalBody" class="bg-body-tertiary p-3 rounded" style="max-height:60vh; overflow:auto;"></pre>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary" onclick="copyEventJSON()">
+          <i class="bi bi-clipboard"></i> Copy JSON
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let allEvents = [];
+let filteredEvents = [];
+let sortKey = 'timestamp';
+let sortAsc = false;
+
+function applyTimePreset(val) {
+  const customSince = document.getElementById('custom-since-group');
+  const customUntil = document.getElementById('custom-until-group');
+  if (val === 'custom') {
+    customSince.style.display = '';
+    customUntil.style.display = '';
+  } else {
+    customSince.style.display = 'none';
+    customUntil.style.display = 'none';
+  }
+}
+
+function fetchEvents() {
+  const preset = document.getElementById('time-preset').value;
+  const maxResults = document.getElementById('max-results').value;
+
+  let params = new URLSearchParams({ max_results: maxResults });
+
+  if (preset === 'custom') {
+    const since = document.getElementById('custom-since').value;
+    const until = document.getElementById('custom-until').value;
+    if (since) params.set('since', new Date(since).toISOString());
+    if (until) params.set('until', new Date(until).toISOString());
+  } else {
+    params.set('since', preset);
+  }
+
+  document.getElementById('events-body').innerHTML =
+    '<tr><td colspan="6" class="text-center p-4"><div class="spinner-border spinner-border-sm"></div> Loading events from PCE...</td></tr>';
+
+  fetch('{{ url_for("main.api_events") }}?' + params)
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) {
+        document.getElementById('events-body').innerHTML =
+          `<tr><td colspan="6" class="text-center text-danger p-4">${data.error}</td></tr>`;
+        return;
+      }
+      allEvents = data.events;
+      applyClientFilters();
+      document.getElementById('btn-export').disabled = false;
+    })
+    .catch(err => {
+      document.getElementById('events-body').innerHTML =
+        `<tr><td colspan="6" class="text-center text-danger p-4">Error: ${err}</td></tr>`;
+    });
+}
+
+function applyClientFilters() {
+  const eventType = document.getElementById('filter-event-type').value.trim();
+  const status = document.getElementById('filter-status').value;
+  const severity = document.getElementById('filter-severity').value;
+  const createdBy = document.getElementById('filter-created-by').value;
+  const search = document.getElementById('filter-search').value.trim().toLowerCase();
+
+  filteredEvents = allEvents.filter(e => {
+    if (eventType) {
+      try {
+        if (!new RegExp(eventType, 'i').test(e.event_type || '')) return false;
+      } catch {
+        if (!(e.event_type || '').includes(eventType)) return false;
+      }
+    }
+    if (status) {
+      if (status === 'null') { if (e.status !== null) return false; }
+      else { if (e.status !== status) return false; }
+    }
+    if (severity && e.severity !== severity) return false;
+    if (createdBy && !(e.created_by && createdBy in e.created_by)) return false;
+    if (search && !JSON.stringify(e).toLowerCase().includes(search)) return false;
+    return true;
+  });
+
+  sortAndRender();
+}
+
+function sortTable(key) {
+  if (sortKey === key) sortAsc = !sortAsc;
+  else { sortKey = key; sortAsc = true; }
+  sortAndRender();
+}
+
+function sortAndRender() {
+  filteredEvents.sort((a, b) => {
+    let va = a[sortKey] ?? '';
+    let vb = b[sortKey] ?? '';
+    if (typeof va === 'string') va = va.toLowerCase();
+    if (typeof vb === 'string') vb = vb.toLowerCase();
+    if (va < vb) return sortAsc ? -1 : 1;
+    if (va > vb) return sortAsc ? 1 : -1;
+    return 0;
+  });
+  renderTable();
+}
+
+function renderTable() {
+  const body = document.getElementById('events-body');
+  const summary = document.getElementById('results-summary');
+
+  summary.textContent = `${filteredEvents.length} events shown (${allEvents.length} fetched from PCE)`;
+
+  if (filteredEvents.length === 0) {
+    body.innerHTML = '<tr><td colspan="6" class="text-center text-muted p-4">No events match the current filters</td></tr>';
+    return;
+  }
+
+  body.innerHTML = filteredEvents.map((e, i) => {
+    const ts = e.timestamp ? new Date(e.timestamp).toLocaleString() : '?';
+    const statusBadge = e.status === 'success'
+      ? '<span class="badge bg-success">success</span>'
+      : e.status === 'failure'
+      ? '<span class="badge bg-danger">failure</span>'
+      : '<span class="badge bg-secondary">null</span>';
+
+    const sevBadge = e.severity === 'err'
+      ? '<span class="badge bg-danger">err</span>'
+      : e.severity === 'warning'
+      ? '<span class="badge bg-warning text-dark">warning</span>'
+      : '<span class="badge bg-info text-dark">info</span>';
+
+    let creator = '?';
+    if (e.created_by) {
+      if (e.created_by.user) creator = '<i class="bi bi-person"></i> ' + (e.created_by.user.username || '?');
+      else if (e.created_by.system !== undefined) creator = '<i class="bi bi-gear"></i> system';
+      else if (e.created_by.agent) creator = '<i class="bi bi-cpu"></i> agent';
+      else if (e.created_by.container_cluster) creator = '<i class="bi bi-box"></i> container';
+    }
+
+    let detail = '';
+    if (e.action && e.action.api_endpoint) detail = '<code class="small">' + e.action.api_endpoint + '</code>';
+    else if (e.notifications && e.notifications.length) detail = '<span class="small text-muted">' + e.notifications[0].notification_type + '</span>';
+
+    return `<tr style="cursor:pointer" onclick="showEvent(${i})">
+      <td class="text-nowrap small">${ts}</td>
+      <td><code>${e.event_type}</code></td>
+      <td>${statusBadge}</td>
+      <td>${sevBadge}</td>
+      <td class="small">${creator}</td>
+      <td>${detail}</td>
+    </tr>`;
+  }).join('');
+}
+
+function showEvent(index) {
+  const e = filteredEvents[index];
+  document.getElementById('eventModalTitle').textContent = e.event_type + ' - ' + (e.timestamp || '');
+  document.getElementById('eventModalBody').textContent = JSON.stringify(e, null, 2);
+  new bootstrap.Modal(document.getElementById('eventModal')).show();
+}
+
+function copyEventJSON() {
+  const text = document.getElementById('eventModalBody').textContent;
+  navigator.clipboard.writeText(text);
+}
+
+function clearFilters() {
+  document.getElementById('filter-event-type').value = '';
+  document.getElementById('filter-status').value = '';
+  document.getElementById('filter-severity').value = '';
+  document.getElementById('filter-created-by').value = '';
+  document.getElementById('filter-search').value = '';
+  applyClientFilters();
+}
+
+function exportCSV() {
+  const headers = ['timestamp', 'event_type', 'status', 'severity', 'created_by', 'href'];
+  const rows = filteredEvents.map(e => {
+    let creator = '';
+    if (e.created_by) {
+      if (e.created_by.user) creator = e.created_by.user.username || '';
+      else if (e.created_by.system !== undefined) creator = 'system';
+    }
+    return [e.timestamp, e.event_type, e.status || '', e.severity || '', creator, e.href || '']
+      .map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',');
+  });
+  const csv = headers.join(',') + '\n' + rows.join('\n');
+  const blob = new Blob([csv], {type: 'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'pce-events.csv';
+  a.click();
+}
+
+// Auto-fetch on page load
+document.addEventListener('DOMContentLoaded', fetchEvents);
+</script>
+{% endblock %}

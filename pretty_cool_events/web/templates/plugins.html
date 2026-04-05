@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %}Plugins{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2><i class="bi bi-plug"></i> Plugins</h2>
+  <span class="text-muted">{{ enabled_plugins | length }} of {{ all_plugins | length }} enabled</span>
+</div>
+
+<form method="POST" action="{{ url_for('main.plugins_page') }}" id="plugins-form">
+
+  <div class="row">
+    {% for name, meta in all_plugins.items() %}
+    {% set is_enabled = name in enabled_plugins %}
+    {% set cfg = plugin_configs.get(name, {}) %}
+    <div class="col-md-6 mb-4">
+      <div class="card h-100 {{ 'border-primary' if is_enabled else 'border-secondary opacity-75' }}" id="card-{{ name }}">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <div>
+            <i class="bi {{ meta.icon }} me-2 {{ 'text-primary' if is_enabled else 'text-muted' }}"></i>
+            <strong>{{ meta.display_name }}</strong>
+            <small class="text-muted ms-2">{{ name }}</small>
+          </div>
+          <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" role="switch"
+                   id="enable-{{ name }}" name="enabled_plugins" value="{{ name }}"
+                   {{ 'checked' if is_enabled }}
+                   onchange="togglePlugin('{{ name }}', this.checked)">
+          </div>
+        </div>
+        <div class="card-body">
+          <p class="card-text small">{{ meta.description }}</p>
+
+          <div class="collapse {{ 'show' if is_enabled }}" id="howto-{{ name }}">
+            <div class="alert alert-light small mb-3">
+              <i class="bi bi-info-circle me-1"></i> <strong>How it works:</strong>
+              {{ meta.how_it_works }}
+            </div>
+          </div>
+
+          <div class="plugin-config {{ '' if is_enabled else 'd-none' }}" id="config-{{ name }}">
+            {% for field_name, field_meta in meta.fields.items() %}
+            <div class="mb-2">
+              <label class="form-label small mb-0">
+                {{ field_meta.label }}
+                {% if field_meta.required %}<span class="text-danger">*</span>{% endif %}
+              </label>
+              {% if field_meta.secret %}
+              <div class="input-group input-group-sm">
+                <input type="password" class="form-control form-control-sm"
+                       name="plugin[{{ name }}][{{ field_name }}]"
+                       value="{{ cfg.get(field_name, '') or '' }}"
+                       placeholder="{{ field_meta.placeholder }}"
+                       id="field-{{ name }}-{{ field_name }}">
+                <button class="btn btn-outline-secondary" type="button"
+                        onclick="togglePasswordVisibility('field-{{ name }}-{{ field_name }}')">
+                  <i class="bi bi-eye"></i>
+                </button>
+              </div>
+              {% elif field_meta.field_type == 'number' %}
+              <input type="number" class="form-control form-control-sm"
+                     name="plugin[{{ name }}][{{ field_name }}]"
+                     value="{{ cfg.get(field_name, '') or '' }}"
+                     placeholder="{{ field_meta.placeholder }}">
+              {% else %}
+              <input type="{{ field_meta.field_type }}" class="form-control form-control-sm"
+                     name="plugin[{{ name }}][{{ field_name }}]"
+                     value="{{ cfg.get(field_name, '') or '' }}"
+                     placeholder="{{ field_meta.placeholder }}">
+              {% endif %}
+              {% if field_meta.help %}
+              <div class="form-text small">{{ field_meta.help }}</div>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="sticky-bottom bg-body border-top p-3 mt-2">
+    <button type="submit" class="btn btn-primary">
+      <i class="bi bi-save"></i> Save Plugin Configuration
+    </button>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function togglePlugin(name, enabled) {
+  const card = document.getElementById('card-' + name);
+  const config = document.getElementById('config-' + name);
+  const howto = document.getElementById('howto-' + name);
+  if (enabled) {
+    card.classList.remove('border-secondary', 'opacity-75');
+    card.classList.add('border-primary');
+    config.classList.remove('d-none');
+    new bootstrap.Collapse(howto, {toggle: false}).show();
+    card.querySelector('.bi').classList.replace('text-muted', 'text-primary');
+  } else {
+    card.classList.remove('border-primary');
+    card.classList.add('border-secondary', 'opacity-75');
+    config.classList.add('d-none');
+    new bootstrap.Collapse(howto, {toggle: false}).hide();
+    card.querySelector('.bi').classList.replace('text-primary', 'text-muted');
+  }
+}
+
+function togglePasswordVisibility(fieldId) {
+  const input = document.getElementById(fieldId);
+  input.type = input.type === 'password' ? 'text' : 'password';
+}
+</script>
+{% endblock %}

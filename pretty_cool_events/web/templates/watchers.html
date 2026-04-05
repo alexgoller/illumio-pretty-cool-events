@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}Watchers{% endblock %}
+
+{% block content %}
+<h2 class="mb-4"><i class="bi bi-eye"></i> Watcher Configuration</h2>
+
+<!-- Existing watchers -->
+{% if watchers %}
+<div class="card mb-4">
+  <div class="card-header">Active Watchers</div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th>Pattern</th>
+            <th>Status</th>
+            <th>Plugin</th>
+            <th>Severity</th>
+            <th>Template</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for pattern, actions in watchers.items() %}
+            {% for action in actions %}
+            <tr>
+              <td><code>{{ pattern }}</code></td>
+              <td><span class="badge {{ 'bg-success' if action.status == 'success' else 'bg-danger' if action.status == 'failure' else 'bg-primary' }}">{{ action.status }}</span></td>
+              <td>{{ action.plugin }}</td>
+              <td>{{ action.severity }}</td>
+              <td>
+                <code>{{ action.extra_data.template or config.default_template }}</code>
+                {% if action.extra_data.match_fields %}
+                <br><small class="text-muted">
+                  {% for field, pattern in action.extra_data.match_fields.items() %}
+                    <span class="badge bg-light text-dark">{{ field }}={{ pattern }}</span>
+                  {% endfor %}
+                </small>
+                {% endif %}
+              </td>
+              <td>
+                <form method="POST" action="{{ url_for('main.delete_watcher') }}" class="d-inline">
+                  <input type="hidden" name="pattern" value="{{ pattern }}">
+                  <input type="hidden" name="index" value="{{ loop.index0 }}">
+                  <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Remove this watcher?')">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="alert alert-info">No watchers configured. Add one below to start monitoring events.</div>
+{% endif %}
+
+<!-- Add new watcher -->
+<div class="card">
+  <div class="card-header">Add New Watcher</div>
+  <div class="card-body">
+    <form method="POST" action="{{ url_for('main.watchers_page') }}">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label">Event Pattern</label>
+          <div class="input-group">
+            <select class="form-select" id="event-type-select" onchange="updatePatternInput(this)">
+              <option value="">-- Select or type custom --</option>
+              {% for et in event_types %}
+              <option value="{{ et }}">{{ et }}</option>
+              {% endfor %}
+              {% set categories = [] %}
+              {% for et in event_types %}
+                {% set cat = et.split('.')[0] %}
+                {% if cat not in categories %}
+                  {% if categories.append(cat) %}{% endif %}
+                  <option value="{{ cat }}.*">{{ cat }}.* (all)</option>
+                {% endif %}
+              {% endfor %}
+            </select>
+          </div>
+          <input type="text" class="form-control mt-2" id="pattern-input" name="watcher_pattern[]" placeholder="e.g. user.login or agent.*" required>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Status</label>
+          <select class="form-select" name="watcher_status[]">
+            <option value="*">* (any status)</option>
+            <option value="success">success</option>
+            <option value="failure">failure</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Plugin</label>
+          <select class="form-select" name="watcher_plugin[]">
+            {% for plugin_name in config.plugin_config.keys() %}
+            <option value="{{ plugin_name }}">{{ plugin_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Severity</label>
+          <select class="form-select" name="watcher_severity[]">
+            <option value="info">info</option>
+            <option value="warning">warning</option>
+            <option value="error">error</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Template</label>
+          <input type="text" class="form-control" name="watcher_template[]" value="default.html">
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary mt-3"><i class="bi bi-plus-circle"></i> Add Watcher</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function updatePatternInput(select) {
+  var input = document.getElementById('pattern-input');
+  if (select.value) {
+    input.value = select.value;
+  }
+}
+</script>
+{% endblock %}
