@@ -191,5 +191,108 @@ class TestWebRoutes:
         assert isinstance(templates, list)
         assert "default.html" in templates
         assert "email-full.html" in templates
-        # _macros.html should be excluded (starts with _)
         assert "_macros.html" not in templates
+
+    # --- Config persistence ---
+
+    def test_config_post_persists(self, flask_app: Flask, client: FlaskClient, tmp_path: Any) -> None:
+        """POST to /config should persist changes to disk."""
+        config = flask_app.config["APP_CONFIG"]
+        config_file = tmp_path / "config.yaml"
+        # Write initial config
+        from pretty_cool_events.config import save_config
+        save_config(config, config_file, backup=False)
+        config.config_path = str(config_file)
+
+        client.post("/config", data={
+            "pce": "new-pce.example.com",
+            "pce_api_user": config.pce.pce_api_user,
+            "pce_org": "1",
+            "pce_poll_interval": "30",
+        }, follow_redirects=True)
+
+        # Verify persisted
+        from pretty_cool_events.config import load_config
+        reloaded = load_config(config_file)
+        assert reloaded.pce.pce == "new-pce.example.com"
+        assert reloaded.pce.pce_poll_interval == 30
+
+    def test_watcher_persists(self, flask_app: Flask, client: FlaskClient, tmp_path: Any) -> None:
+        """Adding a watcher should persist to disk."""
+        config = flask_app.config["APP_CONFIG"]
+        config_file = tmp_path / "config.yaml"
+        from pretty_cool_events.config import save_config
+        save_config(config, config_file, backup=False)
+        config.config_path = str(config_file)
+
+        client.post("/watchers", data={
+            "watcher_pattern[]": "agent.tampering",
+            "watcher_status[]": "success",
+            "watcher_plugin[]": "PCEStdout",
+            "watcher_severity[]": "info",
+            "watcher_template[]": "default.html",
+        }, follow_redirects=True)
+
+        from pretty_cool_events.config import load_config
+        reloaded = load_config(config_file)
+        assert "agent.tampering" in reloaded.watchers
+
+    # --- Authentication ---
+
+    def test_no_auth_when_not_configured(self, client: FlaskClient) -> None:
+        """Without auth config, all pages accessible."""
+        response = client.get("/")
+        assert response.status_code == 200
+
+    def test_auth_redirects_to_login(self, flask_app: Flask, client: FlaskClient) -> None:
+        """With auth configured, unauthenticated requests redirect to login."""
+        config = flask_app.config["APP_CONFIG"]
+        config.httpd.username = "admin"
+        config.httpd.password = "secret"
+
+        response = client.get("/")
+        assert response.status_code == 302
+        assert "/login" in response.headers["Location"]
+
+    def test_login_success(self, flask_app: Flask, client: FlaskClient) -> None:
+        """Correct credentials grant access."""
+        config = flask_app.config["APP_CONFIG"]
+        config.httpd.username = "admin"
+        config.httpd.password = "secret"
+
+        response = client.post("/login", data={"username": "admin", "password": "secret"},
+                               follow_redirects=True)
+        assert response.status_code == 200
+        assert b"Pretty Cool Events" in response.data
+
+    def test_login_failure(self, flask_app: Flask, client: FlaskClient) -> None:
+        """Wrong credentials show error."""
+        config = flask_app.config["APP_CONFIG"]
+        config.httpd.username = "admin"
+        config.httpd.password = "secret"
+
+        response = client.post("/login", data={"username": "admin", "password": "wrong"},
+                               follow_redirects=True)
+        assert b"Invalid" in response.data
+
+    def test_logout(self, flask_app: Flask, client: FlaskClient) -> None:
+        """Logout clears the session."""
+        config = flask_app.config["APP_CONFIG"]
+        config.httpd.username = "admin"
+        config.httpd.password = "secret"
+
+        # Login
+        client.post("/login", data={"username": "admin", "password": "secret"})
+        # Verify access
+        assert client.get("/").status_code == 200
+        # Logout
+        client.get("/logout")
+        # Verify redirected
+        assert client.get("/").status_code == 302
+
+    # --- SSE ---
+
+    def test_sse_endpoint(self, client: FlaskClient) -> None:
+        """SSE endpoint returns event-stream content type."""
+        response = client.get("/api/stream")
+        assert response.content_type.startswith("text/event-stream")

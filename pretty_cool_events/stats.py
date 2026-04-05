@@ -1,13 +1,15 @@
-"""Thread-safe statistics tracking."""
+"""Thread-safe statistics tracking with SSE event broadcasting."""
 
 from __future__ import annotations
 
+import json
+import queue
 import threading
 from typing import Any
 
 
 class StatsTracker:
-    """Tracks event processing statistics with thread safety."""
+    """Tracks event processing statistics with thread safety and live event streaming."""
 
     def __init__(self, timeline_max: int = 1000) -> None:
         self._lock = threading.Lock()
@@ -17,6 +19,8 @@ class StatsTracker:
         self._event_stats: dict[str, int] = {}
         self._event_timeline: list[dict[str, str]] = []
         self._timeline_max = timeline_max
+        self._sse_subscribers: list[queue.Queue[str]] = []
+        self._sse_lock = threading.Lock()
 
     def record_event(self, event_type: str) -> None:
         with self._lock:
@@ -36,6 +40,46 @@ class StatsTracker:
             })
             if len(self._event_timeline) > self._timeline_max:
                 self._event_timeline = self._event_timeline[-self._timeline_max:]
+
+    def publish_event(self, event: dict[str, Any]) -> None:
+        """Broadcast a live event to all SSE subscribers."""
+        data = json.dumps(event, default=str)
+        with self._sse_lock:
+            dead: list[queue.Queue[str]] = []
+            for q in self._sse_subscribers:
+                try:
+                    q.put_nowait(data)
+                except queue.Full:
+                    dead.append(q)
+            for q in dead:
+                self._sse_subscribers.remove(q)
+
+    def publish_stats(self) -> None:
+        """Broadcast current stats snapshot to all SSE subscribers."""
+        snap = self.snapshot()
+        data = json.dumps({"type": "stats", **snap}, default=str)
+        with self._sse_lock:
+            dead: list[queue.Queue[str]] = []
+            for q in self._sse_subscribers:
+                try:
+                    q.put_nowait(data)
+                except queue.Full:
+                    dead.append(q)
+            for q in dead:
+                self._sse_subscribers.remove(q)
+
+    def subscribe(self) -> queue.Queue[str]:
+        """Create a new SSE subscriber queue."""
+        q: queue.Queue[str] = queue.Queue(maxsize=100)
+        with self._sse_lock:
+            self._sse_subscribers.append(q)
+        return q
+
+    def unsubscribe(self, q: queue.Queue[str]) -> None:
+        """Remove an SSE subscriber."""
+        with self._sse_lock:
+            if q in self._sse_subscribers:
+                self._sse_subscribers.remove(q)
 
     @property
     def events_received(self) -> int:

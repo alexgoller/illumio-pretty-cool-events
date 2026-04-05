@@ -71,6 +71,16 @@ class EventLoop:
             self._stats.record_event(event_type)
             self._stats.record_timeline(timestamp, event_type)
 
+            # Broadcast live event to SSE subscribers
+            self._stats.publish_event({
+                "type": "event",
+                "event_type": event_type,
+                "status": event.get("status"),
+                "severity": event.get("severity"),
+                "timestamp": timestamp,
+                "created_by": event.get("created_by"),
+            })
+
             matches = self._watchers.match(event)
 
             for action, extra_data in matches:
@@ -87,6 +97,10 @@ class EventLoop:
                 except Exception:
                     logger.exception("Plugin '%s' failed for event %s",
                                      action.plugin, event_type)
+
+        # Broadcast updated stats after processing batch
+        if events:
+            self._stats.publish_stats()
 
     def stop(self) -> None:
         """Signal the event loop to stop."""

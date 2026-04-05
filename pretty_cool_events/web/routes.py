@@ -1,31 +1,41 @@
-"""Web UI routes."""
+"""Web UI routes with authentication, config persistence, and SSE."""
 
 from __future__ import annotations
 
+import functools
+import importlib.resources
 import json
 import logging
+import queue
 import re
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from flask import (
     Blueprint,
+    Response,
     current_app,
     flash,
     jsonify,
     redirect,
     render_template,
     request,
+    session,
     url_for,
 )
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from pretty_cool_events.config import AppConfig, WatcherAction, load_event_types
+from pretty_cool_events.config import AppConfig, WatcherAction, load_event_types, save_config
 from pretty_cool_events.plugin_meta import PLUGIN_METADATA
 
 logger = logging.getLogger(__name__)
 
 bp = Blueprint("main", __name__)
 
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 def _get_config() -> AppConfig:
     return current_app.config["APP_CONFIG"]
@@ -39,7 +49,63 @@ def _get_pce_client() -> Any:
     return current_app.config.get("PCE_CLIENT")
 
 
+def _persist_config() -> None:
+    """Save current config to disk if a config_path is known."""
+    config = _get_config()
+    if config.config_path:
+        try:
+            save_config(config, config.config_path)
+            logger.info("Config persisted to %s", config.config_path)
+        except Exception:
+            logger.exception("Failed to persist config to %s", config.config_path)
+
+
+# ---------------------------------------------------------------------------
+# Authentication
+# ---------------------------------------------------------------------------
+
+def _auth_required(f: Any) -> Any:
+    """Decorator: require login if httpd username/password are configured."""
+    @functools.wraps(f)
+    def decorated(*args: Any, **kwargs: Any) -> Any:
+        config = _get_config()
+        if config.httpd.username and config.httpd.password and not session.get("authenticated"):
+            return redirect(url_for("main.login_page", next=request.path))
+        return f(*args, **kwargs)
+    return decorated
+
+
+@bp.route("/login", methods=["GET", "POST"])
+def login_page() -> Any:
+    config = _get_config()
+    if not (config.httpd.username and config.httpd.password):
+        return redirect(url_for("main.index"))
+
+    if request.method == "POST":
+        username = request.form.get("username", "")
+        password = request.form.get("password", "")
+        if username == config.httpd.username and password == config.httpd.password:
+            session["authenticated"] = True
+            next_url = request.args.get("next", "/")
+            return redirect(next_url)
+        flash("Invalid username or password", "danger")
+
+    return render_template("login.html")
+
+
+@bp.route("/logout")
+def logout_page() -> Any:
+    session.pop("authenticated", None)
+    flash("Logged out", "success")
+    return redirect(url_for("main.login_page"))
+
+
+# ---------------------------------------------------------------------------
+# Pages
+# ---------------------------------------------------------------------------
+
 @bp.route("/")
+@_auth_required
 def index() -> str:
     stats = _get_stats()
     config = _get_config()
@@ -47,6 +113,7 @@ def index() -> str:
 
 
 @bp.route("/statistics")
+@_auth_required
 def statistics() -> str:
     stats = _get_stats().snapshot()
     return render_template(
@@ -59,20 +126,18 @@ def statistics() -> str:
 
 
 @bp.route("/events")
+@_auth_required
 def events_page() -> str:
-    """Event explorer - browse historical PCE events with filtering."""
     return render_template("events.html", event_types=load_event_types(), config=_get_config())
 
 
 @bp.route("/plugins", methods=["GET", "POST"])
+@_auth_required
 def plugins_page() -> str:
-    """Plugin configuration with enable/disable toggles and full settings."""
     config = _get_config()
 
     if request.method == "POST":
         enabled = set(request.form.getlist("enabled_plugins"))
-
-        # Build new plugin_config: only keep enabled plugins, update their settings
         new_plugin_config: dict[str, dict[str, Any]] = {}
         for plugin_name, meta in PLUGIN_METADATA.items():
             if plugin_name not in enabled:
@@ -81,10 +146,8 @@ def plugins_page() -> str:
             for field_name in meta.fields:
                 form_key = f"plugin[{plugin_name}][{field_name}]"
                 val = request.form.get(form_key, "")
-                # Preserve existing secret values if the form sends empty
                 if meta.fields[field_name].secret and not val:
                     val = (config.plugin_config.get(plugin_name) or {}).get(field_name, "")
-                # Convert numeric fields
                 if meta.fields[field_name].field_type == "number" and val:
                     try:
                         plugin_cfg[field_name] = int(val)
@@ -95,13 +158,12 @@ def plugins_page() -> str:
             new_plugin_config[plugin_name] = plugin_cfg
 
         config.plugin_config = new_plugin_config
+        _persist_config()
         flash("Plugin configuration saved", "success")
         return redirect(url_for("main.plugins_page"))
 
-    # Build context for the template
     enabled_plugins = set(config.plugin_config.keys())
     plugin_configs = {name: (config.plugin_config.get(name) or {}) for name in PLUGIN_METADATA}
-
     return render_template(
         "plugins.html",
         all_plugins=PLUGIN_METADATA,
@@ -111,154 +173,13 @@ def plugins_page() -> str:
 
 
 @bp.route("/guide")
+@_auth_required
 def guide_page() -> str:
-    """How-it-works guide and documentation."""
     return render_template("guide.html", event_types=load_event_types())
 
 
-@bp.route("/api/events")
-def api_events() -> Any:
-    """Fetch events from the PCE with time range and field filtering.
-
-    Query params:
-        since: ISO timestamp or relative like "1h", "24h", "7d", "30d"
-        until: ISO timestamp (default: now)
-        max_results: max events to return (default: 500)
-        event_type: filter by event_type (supports regex)
-        status: filter by status (success, failure, null, or * for all)
-        severity: filter by severity
-        search: free-text search across all string fields
-        created_by: filter by creator type (user, system, agent)
-        username: filter by created_by.user.username
-    """
-    pce_client = _get_pce_client()
-    if not pce_client:
-        return jsonify({"error": "PCE client not available"}), 503
-
-    # Parse time range
-    since_param = request.args.get("since", "24h")
-    until_param = request.args.get("until")
-    max_results = int(request.args.get("max_results", "500"))
-
-    now = datetime.now(timezone.utc)
-    since = _parse_time(since_param, now)
-    until = _parse_time(until_param, now) if until_param else now
-
-    # Fetch from PCE
-    events = pce_client.get_events(since=since, until=until, max_results=max_results)
-
-    # Apply client-side filters
-    event_type_filter = request.args.get("event_type", "")
-    status_filter = request.args.get("status", "")
-    severity_filter = request.args.get("severity", "")
-    search_filter = request.args.get("search", "")
-    created_by_filter = request.args.get("created_by", "")
-    username_filter = request.args.get("username", "")
-
-    filtered = _apply_filters(
-        events,
-        event_type=event_type_filter,
-        status=status_filter,
-        severity=severity_filter,
-        search=search_filter,
-        created_by=created_by_filter,
-        username=username_filter,
-    )
-
-    return jsonify({
-        "events": filtered,
-        "total_fetched": len(events),
-        "total_filtered": len(filtered),
-        "since": since.isoformat() if since else None,
-        "until": until.isoformat(),
-    })
-
-
-def _parse_time(value: str | None, now: datetime) -> datetime | None:
-    """Parse a time value that can be relative (1h, 24h, 7d) or ISO format."""
-    if not value:
-        return None
-
-    # Relative time
-    match = re.match(r"^(\d+)([mhdw])$", value.strip())
-    if match:
-        amount = int(match.group(1))
-        unit = match.group(2)
-        deltas = {"m": timedelta(minutes=amount), "h": timedelta(hours=amount),
-                  "d": timedelta(days=amount), "w": timedelta(weeks=amount)}
-        return now - deltas[unit]
-
-    # ISO timestamp
-    try:
-        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        return dt
-    except ValueError:
-        return None
-
-
-def _apply_filters(
-    events: list[dict[str, Any]],
-    event_type: str = "",
-    status: str = "",
-    severity: str = "",
-    search: str = "",
-    created_by: str = "",
-    username: str = "",
-) -> list[dict[str, Any]]:
-    """Apply client-side filters to a list of events."""
-    result = events
-
-    if event_type:
-        try:
-            pattern = re.compile(event_type, re.IGNORECASE)
-            result = [e for e in result if pattern.search(e.get("event_type", ""))]
-        except re.error:
-            result = [e for e in result if event_type in e.get("event_type", "")]
-
-    if status and status != "*":
-        if status == "null":
-            result = [e for e in result if e.get("status") is None]
-        else:
-            result = [e for e in result if e.get("status") == status]
-
-    if severity:
-        result = [e for e in result if e.get("severity") == severity]
-
-    if created_by:
-        result = [e for e in result if created_by in (e.get("created_by") or {})]
-
-    if username:
-        username_lower = username.lower()
-        result = [
-            e for e in result
-            if username_lower in (
-                (e.get("created_by") or {}).get("user", {}).get("username", "")
-            ).lower()
-        ]
-
-    if search:
-        search_lower = search.lower()
-        result = [e for e in result if _event_contains(e, search_lower)]
-
-    return result
-
-
-def _event_contains(event: dict[str, Any], search: str) -> bool:
-    """Deep search: check if any string value in the event contains the search term."""
-    def _search(obj: Any) -> bool:
-        if isinstance(obj, str):
-            return search in obj.lower()
-        if isinstance(obj, dict):
-            return any(_search(v) for v in obj.values())
-        if isinstance(obj, list):
-            return any(_search(item) for item in obj)
-        return False
-    return _search(event)
-
-
 @bp.route("/config", methods=["GET", "POST"])
+@_auth_required
 def config_page() -> str:
     config = _get_config()
 
@@ -274,21 +195,22 @@ def config_page() -> str:
         config.httpd.enabled = "httpd" in request.form
         config.traffic_worker = "traffic_worker" in request.form
 
-        for plugin_name, plugin_config in config.plugin_config.items():
-            if plugin_config is None:
-                continue
-            for key in plugin_config:
-                form_key = f"plugin_config[{plugin_name}][{key}]"
-                if form_key in request.form:
-                    config.plugin_config[plugin_name][key] = request.form[form_key]
+        # Auth settings
+        new_user = request.form.get("httpd_username", "")
+        new_pass = request.form.get("httpd_password", "")
+        config.httpd.username = new_user
+        if new_pass:  # Only update password if provided (don't blank it on empty form)
+            config.httpd.password = new_pass
 
-        flash("Configuration updated successfully", "success")
+        _persist_config()
+        flash("Configuration saved", "success")
         return redirect(url_for("main.config_page"))
 
     return render_template("config.html", config=config)
 
 
 @bp.route("/watchers", methods=["GET", "POST"])
+@_auth_required
 def watchers_page() -> str:
     config = _get_config()
     event_types = load_event_types()
@@ -303,31 +225,28 @@ def watchers_page() -> str:
         for i, pattern in enumerate(patterns):
             if not pattern:
                 continue
-
             action = WatcherAction(
                 status=statuses[i] if i < len(statuses) else "success",
                 severity=severities[i] if i < len(severities) else "info",
                 plugin=plugins[i] if i < len(plugins) else "PCEStdout",
                 extra_data={"template": templates[i] if i < len(templates) else "default.html"},
             )
-
             if pattern in config.watchers:
                 config.watchers[pattern].append(action)
             else:
                 config.watchers[pattern] = [action]
 
-        flash("Watcher configuration updated", "success")
+        _persist_config()
+        flash("Watcher configuration saved", "success")
         return redirect(url_for("main.watchers_page"))
 
     return render_template(
-        "watchers.html",
-        config=config,
-        watchers=config.watchers,
-        event_types=event_types,
+        "watchers.html", config=config, watchers=config.watchers, event_types=event_types,
     )
 
 
 @bp.route("/watchers/delete", methods=["POST"])
+@_auth_required
 def delete_watcher() -> str:
     config = _get_config()
     pattern = request.form.get("pattern", "")
@@ -339,14 +258,55 @@ def delete_watcher() -> str:
             config.watchers[pattern].pop(idx)
             if not config.watchers[pattern]:
                 del config.watchers[pattern]
+            _persist_config()
             flash(f"Watcher removed: {pattern}", "success")
 
     return redirect(url_for("main.watchers_page"))
 
 
+# ---------------------------------------------------------------------------
+# API endpoints
+# ---------------------------------------------------------------------------
+
+@bp.route("/api/events")
+@_auth_required
+def api_events() -> Any:
+    pce_client = _get_pce_client()
+    if not pce_client:
+        return jsonify({"error": "PCE client not available"}), 503
+
+    since_param = request.args.get("since", "24h")
+    until_param = request.args.get("until")
+    max_results = int(request.args.get("max_results", "500"))
+
+    now = datetime.now(timezone.utc)
+    since = _parse_time(since_param, now)
+    until = _parse_time(until_param, now) if until_param else now
+
+    events = pce_client.get_events(since=since, until=until, max_results=max_results)
+
+    filtered = _apply_filters(
+        events,
+        event_type=request.args.get("event_type", ""),
+        status=request.args.get("status", ""),
+        severity=request.args.get("severity", ""),
+        search=request.args.get("search", ""),
+        created_by=request.args.get("created_by", ""),
+        username=request.args.get("username", ""),
+    )
+
+    return jsonify({
+        "events": filtered,
+        "total_fetched": len(events),
+        "total_filtered": len(filtered),
+        "since": since.isoformat() if since else None,
+        "until": until.isoformat(),
+    })
+
+
 @bp.route("/api/watchers", methods=["POST"])
+@_auth_required
 def api_create_watcher() -> Any:
-    """Create a watcher from JSON. Used by the event explorer's 'Create Watcher' flow."""
     config = _get_config()
     data = request.get_json()
     if not data:
@@ -361,7 +321,6 @@ def api_create_watcher() -> Any:
         extra_data["template"] = data["template"]
     if data.get("match_fields"):
         extra_data["match_fields"] = data["match_fields"]
-    # Pass through any extra keys (channel, email_to, phone_number, etc.)
     for key in ("channel", "email_to", "phone_number"):
         if data.get(key):
             extra_data[key] = data[key]
@@ -378,13 +337,14 @@ def api_create_watcher() -> Any:
     else:
         config.watchers[pattern] = [action]
 
+    _persist_config()
     logger.info("Watcher created via API: %s -> %s", pattern, action.plugin)
     return jsonify({"ok": True, "pattern": pattern, "plugin": action.plugin})
 
 
 @bp.route("/api/render", methods=["POST"])
+@_auth_required
 def api_render_template() -> Any:
-    """Render an event through a template. Returns the rendered output."""
     data = request.get_json()
     if not data:
         return jsonify({"error": "No JSON body"}), 400
@@ -395,23 +355,14 @@ def api_render_template() -> Any:
         return jsonify({"error": "event is required"}), 400
 
     config = _get_config()
-    template_globals = {
-        "pce_fqdn": config.pce.pce,
-        "pce_org": config.pce.pce_org,
-    }
-
-    import importlib.resources
-
-    from jinja2 import Environment, FileSystemLoader, select_autoescape
+    template_globals = {"pce_fqdn": config.pce.pce, "pce_org": config.pce.pce_org}
 
     template_dir = str(importlib.resources.files("pretty_cool_events") / "templates")
     env = Environment(
         loader=FileSystemLoader(template_dir),
         autoescape=select_autoescape(["html", "xml"]),
     )
-    env.filters["json_filter"] = lambda v: __import__("json").dumps(
-        v, indent=4, sort_keys=True, ensure_ascii=True
-    )
+    env.filters["json_filter"] = lambda v: json.dumps(v, indent=4, sort_keys=True, ensure_ascii=True)
 
     try:
         tmpl = env.get_template(template_name)
@@ -426,10 +377,8 @@ def api_render_template() -> Any:
 
 
 @bp.route("/api/templates")
+@_auth_required
 def api_list_templates() -> Any:
-    """List available output templates."""
-    import importlib.resources
-
     template_dir = importlib.resources.files("pretty_cool_events") / "templates"
     templates = []
     for item in template_dir.iterdir():
@@ -440,7 +389,35 @@ def api_list_templates() -> Any:
     return jsonify(sorted(templates))
 
 
+@bp.route("/api/stream")
+@_auth_required
+def api_event_stream() -> Response:
+    """Server-Sent Events endpoint for live event updates."""
+    stats = _get_stats()
+    q = stats.subscribe()
+
+    def generate() -> Any:
+        # Send initial stats snapshot
+        snap = json.dumps({"type": "stats", **stats.snapshot()}, default=str)
+        yield f"data: {snap}\n\n"
+
+        try:
+            while True:
+                try:
+                    data = q.get(timeout=30)
+                    yield f"data: {data}\n\n"
+                except queue.Empty:
+                    # Send keepalive
+                    yield ": keepalive\n\n"
+        except GeneratorExit:
+            stats.unsubscribe(q)
+
+    return Response(generate(), mimetype="text/event-stream",
+                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
 @bp.route("/api/stats")
+@_auth_required
 def api_stats() -> Any:
     return jsonify(_get_stats().snapshot())
 
@@ -448,3 +425,68 @@ def api_stats() -> Any:
 @bp.route("/api/health")
 def api_health() -> Any:
     return jsonify({"status": "ok"})
+
+
+# ---------------------------------------------------------------------------
+# Filter helpers
+# ---------------------------------------------------------------------------
+
+def _parse_time(value: str | None, now: datetime) -> datetime | None:
+    if not value:
+        return None
+    match = re.match(r"^(\d+)([mhdw])$", value.strip())
+    if match:
+        amount = int(match.group(1))
+        unit = match.group(2)
+        deltas = {"m": timedelta(minutes=amount), "h": timedelta(hours=amount),
+                  "d": timedelta(days=amount), "w": timedelta(weeks=amount)}
+        return now - deltas[unit]
+    try:
+        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except ValueError:
+        return None
+
+
+def _apply_filters(
+    events: list[dict[str, Any]], event_type: str = "", status: str = "",
+    severity: str = "", search: str = "", created_by: str = "", username: str = "",
+) -> list[dict[str, Any]]:
+    result = events
+    if event_type:
+        try:
+            pattern = re.compile(event_type, re.IGNORECASE)
+            result = [e for e in result if pattern.search(e.get("event_type", ""))]
+        except re.error:
+            result = [e for e in result if event_type in e.get("event_type", "")]
+    if status and status != "*":
+        if status == "null":
+            result = [e for e in result if e.get("status") is None]
+        else:
+            result = [e for e in result if e.get("status") == status]
+    if severity:
+        result = [e for e in result if e.get("severity") == severity]
+    if created_by:
+        result = [e for e in result if created_by in (e.get("created_by") or {})]
+    if username:
+        ul = username.lower()
+        result = [e for e in result
+                  if ul in ((e.get("created_by") or {}).get("user", {}).get("username", "")).lower()]
+    if search:
+        sl = search.lower()
+        result = [e for e in result if _event_contains(e, sl)]
+    return result
+
+
+def _event_contains(event: dict[str, Any], search: str) -> bool:
+    def _s(obj: Any) -> bool:
+        if isinstance(obj, str):
+            return search in obj.lower()
+        if isinstance(obj, dict):
+            return any(_s(v) for v in obj.values())
+        if isinstance(obj, list):
+            return any(_s(item) for item in obj)
+        return False
+    return _s(event)

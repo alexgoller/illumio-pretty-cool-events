@@ -34,6 +34,8 @@ class HttpdConfig(BaseModel):
     enabled: bool = False
     address: str = "0.0.0.0"
     port: int = 8443
+    username: str = ""
+    password: str = ""
 
 
 class StdoutPluginConfig(BaseModel):
@@ -145,6 +147,7 @@ class AppConfig(BaseModel):
     traffic_worker: bool = False
     plugin_config: dict[str, dict[str, Any]] = Field(default_factory=dict)
     watchers: dict[str, list[WatcherAction]] = Field(default_factory=dict)
+    config_path: str | None = Field(default=None, exclude=True)
 
     @field_validator("watchers", mode="before")
     @classmethod
@@ -213,6 +216,8 @@ def _normalize_raw_config(raw: dict[str, Any]) -> dict[str, Any]:
         "enabled": config_section.get("httpd", False),
         "address": config_section.get("httpd_listener_address", "0.0.0.0"),
         "port": config_section.get("httpd_listener_port", 8443),
+        "username": config_section.get("httpd_username", ""),
+        "password": config_section.get("httpd_password", ""),
     }
 
     # Normalize None plugin configs to empty dicts
@@ -243,7 +248,9 @@ def load_config(path: Path | str) -> AppConfig:
 
     raw = _apply_env_overrides(raw)
     normalized = _normalize_raw_config(raw)
-    return AppConfig(**normalized)
+    app_config = AppConfig(**normalized)
+    app_config.config_path = str(path.resolve())
+    return app_config
 
 
 def save_config(config: AppConfig, path: Path | str, backup: bool = True) -> None:
@@ -269,6 +276,8 @@ def save_config(config: AppConfig, path: Path | str, backup: bool = True) -> Non
         "httpd": config.httpd.enabled,
         "httpd_listener_address": config.httpd.address,
         "httpd_listener_port": config.httpd.port,
+        "httpd_username": config.httpd.username,
+        "httpd_password": config.httpd.password,
         "default_template": config.default_template,
         "traffic_worker": config.traffic_worker,
         "plugin_config": config.plugin_config,

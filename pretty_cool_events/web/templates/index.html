@@ -23,7 +23,7 @@
   <div class="col-md-3">
     <div class="card stat-card text-center">
       <div class="card-body">
-        <div class="stat-value text-info">{{ stats.plugin_stats | length }}</div>
+        <div class="stat-value text-info" id="active-plugins">{{ stats.plugin_stats | length }}</div>
         <div class="text-muted">Active Plugins</div>
       </div>
     </div>
@@ -31,7 +31,7 @@
   <div class="col-md-3">
     <div class="card stat-card text-center">
       <div class="card-body">
-        <div class="stat-value text-warning">{{ stats.event_stats | length }}</div>
+        <div class="stat-value text-warning" id="event-types">{{ stats.event_stats | length }}</div>
         <div class="text-muted">Event Types Seen</div>
       </div>
     </div>
@@ -56,7 +56,7 @@
   <div class="col-md-6">
     <div class="card mb-4">
       <div class="card-header"><i class="bi bi-plug"></i> Plugin Activity</div>
-      <div class="card-body">
+      <div class="card-body" id="plugin-activity">
         {% if stats.plugin_stats %}
         <table class="table table-sm mb-0">
           <thead><tr><th>Plugin</th><th>Events Processed</th></tr></thead>
@@ -74,25 +74,33 @@
   </div>
 </div>
 
+<!-- Live event feed -->
 <div class="row">
   <div class="col-12">
     <div class="card">
-      <div class="card-header"><i class="bi bi-list-task"></i> Recent Event Types</div>
-      <div class="card-body">
-        {% if stats.event_stats %}
-        <div class="table-responsive">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-lightning-charge"></i> Live Event Feed</span>
+        <span class="badge bg-success" id="sse-status">
+          <i class="bi bi-circle-fill"></i> Connected
+        </span>
+      </div>
+      <div class="card-body p-0">
+        <div style="max-height: 400px; overflow-y: auto;" id="live-feed-scroll">
           <table class="table table-sm table-hover mb-0">
-            <thead><tr><th>Event Type</th><th>Count</th></tr></thead>
-            <tbody>
-              {% for event_type, count in stats.event_stats.items() %}
-              <tr><td><code>{{ event_type }}</code></td><td>{{ count }}</td></tr>
-              {% endfor %}
+            <thead class="sticky-top bg-body-tertiary">
+              <tr>
+                <th>Time</th>
+                <th>Event Type</th>
+                <th>Status</th>
+                <th>Severity</th>
+                <th>By</th>
+              </tr>
+            </thead>
+            <tbody id="live-feed">
+              <tr id="live-feed-empty"><td colspan="5" class="text-center text-muted p-3">Waiting for events...</td></tr>
             </tbody>
           </table>
         </div>
-        {% else %}
-        <p class="text-muted mb-0">No events received yet. Waiting for PCE events...</p>
-        {% endif %}
       </div>
     </div>
   </div>
@@ -101,15 +109,108 @@
 
 {% block scripts %}
 <script>
-// Auto-refresh stats every 10 seconds
-setInterval(function() {
-  fetch('{{ url_for("main.api_stats") }}')
-    .then(r => r.json())
-    .then(data => {
-      document.getElementById('events-received').textContent = data.events_received;
-      document.getElementById('events-matched').textContent = data.events_matched;
-    })
-    .catch(() => {});
-}, 10000);
+const MAX_FEED_ROWS = 100;
+
+function statusBadge(s) {
+  return s === 'success' ? '<span class="badge bg-success">success</span>'
+    : s === 'failure' ? '<span class="badge bg-danger">failure</span>'
+    : '<span class="badge bg-secondary">null</span>';
+}
+
+function sevBadge(s) {
+  return s === 'err' ? '<span class="badge bg-danger">err</span>'
+    : s === 'warning' ? '<span class="badge bg-warning text-dark">warning</span>'
+    : '<span class="badge bg-info text-dark">info</span>';
+}
+
+function creatorText(cb) {
+  if (!cb) return '?';
+  if (cb.user) return cb.user.username || '?';
+  if (cb.system !== undefined) return 'system';
+  if (cb.agent) return 'agent';
+  if (cb.container_cluster) return 'container';
+  return '?';
+}
+
+function updateStats(data) {
+  document.getElementById('events-received').textContent = data.events_received;
+  document.getElementById('events-matched').textContent = data.events_matched;
+  if (data.plugin_stats) {
+    document.getElementById('active-plugins').textContent = Object.keys(data.plugin_stats).length;
+    // Update plugin table
+    const div = document.getElementById('plugin-activity');
+    if (Object.keys(data.plugin_stats).length) {
+      let html = '<table class="table table-sm mb-0"><thead><tr><th>Plugin</th><th>Events Processed</th></tr></thead><tbody>';
+      for (const [p, c] of Object.entries(data.plugin_stats)) {
+        html += `<tr><td>${p}</td><td><span class="badge bg-primary">${c}</span></td></tr>`;
+      }
+      html += '</tbody></table>';
+      div.innerHTML = html;
+    }
+  }
+  if (data.event_stats) {
+    document.getElementById('event-types').textContent = Object.keys(data.event_stats).length;
+  }
+}
+
+function addLiveEvent(ev) {
+  const feed = document.getElementById('live-feed');
+  const empty = document.getElementById('live-feed-empty');
+  if (empty) empty.remove();
+
+  const ts = ev.timestamp ? new Date(ev.timestamp).toLocaleTimeString() : '?';
+  const tr = document.createElement('tr');
+  tr.className = 'fade-in';
+  tr.innerHTML = `
+    <td class="small text-nowrap">${ts}</td>
+    <td><code>${ev.event_type}</code></td>
+    <td>${statusBadge(ev.status)}</td>
+    <td>${sevBadge(ev.severity)}</td>
+    <td class="small">${creatorText(ev.created_by)}</td>`;
+
+  feed.insertBefore(tr, feed.firstChild);
+
+  // Trim old rows
+  while (feed.children.length > MAX_FEED_ROWS) {
+    feed.removeChild(feed.lastChild);
+  }
+
+  // Brief highlight
+  tr.style.backgroundColor = '#d1ecf1';
+  setTimeout(() => { tr.style.backgroundColor = ''; tr.style.transition = 'background-color 1s'; }, 50);
+}
+
+// SSE connection
+let evtSource;
+function connectSSE() {
+  evtSource = new EventSource('{{ url_for("main.api_event_stream") }}');
+  const badge = document.getElementById('sse-status');
+
+  evtSource.onopen = () => {
+    badge.className = 'badge bg-success';
+    badge.innerHTML = '<i class="bi bi-circle-fill"></i> Connected';
+  };
+
+  evtSource.onmessage = (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      if (data.type === 'stats') {
+        updateStats(data);
+      } else if (data.type === 'event') {
+        addLiveEvent(data);
+      }
+    } catch (err) {}
+  };
+
+  evtSource.onerror = () => {
+    badge.className = 'badge bg-danger';
+    badge.innerHTML = '<i class="bi bi-circle-fill"></i> Disconnected';
+    evtSource.close();
+    // Reconnect after 5s
+    setTimeout(connectSSE, 5000);
+  };
+}
+
+connectSSE();
 </script>
 {% endblock %}

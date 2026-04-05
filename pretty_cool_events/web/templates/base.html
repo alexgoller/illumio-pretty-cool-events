@@ -66,6 +66,13 @@
                 <i class="bi bi-heart-pulse"></i> Health
               </a>
             </li>
+            {% if session.get('authenticated') %}
+            <li class="nav-item">
+              <a class="nav-link text-danger" href="{{ url_for('main.logout_page') }}">
+                <i class="bi bi-box-arrow-right"></i> Logout
+              </a>
+            </li>
+            {% endif %}
           </ul>
         </div>
       </div>
