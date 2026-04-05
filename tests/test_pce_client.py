@@ -48,12 +48,13 @@ class TestPCEClient:
             assert len(events) == 2
             assert events[0]["event_type"] == "user.login"
 
-    def test_get_events_error(self, pce_client: PCEClient) -> None:
+    def test_get_events_connection_error(self, pce_client: PCEClient) -> None:
+        """Connection errors are re-raised so the event loop can track them."""
         with patch.object(
             pce_client._client, "get", side_effect=httpx.ConnectError("Connection refused")
         ):
-            events = pce_client.get_events()
-            assert events == []
+            with pytest.raises(httpx.ConnectError):
+                pce_client.get_events()
 
     def test_auto_prefix_https(self) -> None:
         client = PCEClient(

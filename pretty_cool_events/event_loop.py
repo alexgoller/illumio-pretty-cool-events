@@ -54,7 +54,15 @@ class EventLoop:
         while not self._stop_event.is_set():
             try:
                 self._poll_events(current_date)
-            except Exception:
+            except Exception as e:
+                error_msg = str(e)
+                self._stats.record_pce_error(error_msg)
+                self._stats.publish_event({
+                    "type": "pce_error",
+                    "error": error_msg,
+                    "consecutive_failures": self._stats.snapshot()["pce_consecutive_failures"],
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                })
                 logger.exception("Error in event polling cycle")
 
             current_date = datetime.now(timezone.utc).astimezone()
@@ -65,6 +73,7 @@ class EventLoop:
     def _poll_events(self, since: datetime) -> None:
         """Fetch and process events since the given timestamp."""
         events = self._pce.get_events(since)
+        self._stats.record_pce_success()
 
         for event in events:
             if "event_type" not in event:

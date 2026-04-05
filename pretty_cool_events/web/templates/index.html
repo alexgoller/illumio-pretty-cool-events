@@ -41,14 +41,33 @@
 <div class="row">
   <div class="col-md-6">
     <div class="card mb-4">
-      <div class="card-header"><i class="bi bi-server"></i> PCE Connection</div>
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-server"></i> PCE Connection</span>
+        <span class="badge" id="pce-badge">
+          {% if stats.pce_status == "connected" %}
+            <span class="badge bg-success"><i class="bi bi-circle-fill"></i> Connected</span>
+          {% elif stats.pce_status == "error" %}
+            <span class="badge bg-danger"><i class="bi bi-circle-fill"></i> Error</span>
+          {% else %}
+            <span class="badge bg-secondary"><i class="bi bi-circle-fill"></i> Unknown</span>
+          {% endif %}
+        </span>
+      </div>
       <div class="card-body">
         <table class="table table-sm mb-0">
           <tr><td class="text-muted">PCE</td><td><code>{{ config.pce.pce }}</code></td></tr>
           <tr><td class="text-muted">Organization</td><td>{{ config.pce.pce_org }}</td></tr>
           <tr><td class="text-muted">Poll Interval</td><td>{{ config.pce.pce_poll_interval }}s</td></tr>
-          <tr><td class="text-muted">Web UI</td><td>{{ "Enabled" if config.httpd.enabled else "Disabled" }}</td></tr>
-          <tr><td class="text-muted">Traffic Worker</td><td>{{ "Enabled" if config.traffic_worker else "Disabled" }}</td></tr>
+          <tr><td class="text-muted">Status</td><td id="pce-status-detail">
+            {% if stats.pce_status == "error" %}
+              <span class="text-danger">{{ stats.pce_last_error }}</span>
+              <br><small class="text-muted">{{ stats.pce_consecutive_failures }} consecutive failures</small>
+            {% elif stats.pce_last_success %}
+              <span class="text-success">Last success: {{ stats.pce_last_success[:19] }}</span>
+            {% else %}
+              Waiting for first poll...
+            {% endif %}
+          </td></tr>
         </table>
       </div>
     </div>
@@ -151,6 +170,37 @@ function updateStats(data) {
   if (data.event_stats) {
     document.getElementById('event-types').textContent = Object.keys(data.event_stats).length;
   }
+  // PCE connection status
+  updatePceStatus(data);
+}
+
+function updatePceStatus(data) {
+  const badge = document.getElementById('pce-badge');
+  const detail = document.getElementById('pce-status-detail');
+  if (!badge || !detail) return;
+  if (data.pce_status === 'connected') {
+    badge.innerHTML = '<span class="badge bg-success"><i class="bi bi-circle-fill"></i> Connected</span>';
+    const ts = data.pce_last_success ? data.pce_last_success.substring(11, 19) : '';
+    detail.innerHTML = `<span class="text-success">Last success: ${ts}</span>`;
+  } else if (data.pce_status === 'error') {
+    badge.innerHTML = '<span class="badge bg-danger"><i class="bi bi-circle-fill"></i> Error</span>';
+    detail.innerHTML = `<span class="text-danger">${data.pce_last_error || 'Connection failed'}</span>` +
+      `<br><small class="text-muted">${data.pce_consecutive_failures} consecutive failures</small>`;
+  }
+}
+
+function addPceError(ev) {
+  const feed = document.getElementById('live-feed');
+  const empty = document.getElementById('live-feed-empty');
+  if (empty) empty.remove();
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td class="small text-nowrap">${new Date(ev.timestamp).toLocaleTimeString()}</td>
+    <td colspan="4"><span class="badge bg-danger">PCE ERROR</span> <span class="text-danger small">${ev.error}</span>
+    ${ev.consecutive_failures > 1 ? '<span class="text-muted small ms-2">(' + ev.consecutive_failures + ' failures)</span>' : ''}</td>`;
+  tr.style.backgroundColor = '#f8d7da';
+  feed.insertBefore(tr, feed.firstChild);
+  while (feed.children.length > MAX_FEED_ROWS) feed.removeChild(feed.lastChild);
 }
 
 function addLiveEvent(ev) {
@@ -198,6 +248,8 @@ function connectSSE() {
         updateStats(data);
       } else if (data.type === 'event') {
         addLiveEvent(data);
+      } else if (data.type === 'pce_error') {
+        addPceError(data);
       }
     } catch (err) {}
   };

@@ -52,10 +52,10 @@ class PCEClient:
     def __exit__(self, *args: Any) -> None:
         self.close()
 
-    def health_check(self) -> bool:
-        """Check PCE connectivity."""
+    def health_check(self, timeout: float = 10.0) -> bool:
+        """Check PCE connectivity with a short timeout."""
         try:
-            r = self._client.get("/api/v2/health")
+            r = self._client.get("/api/v2/health", timeout=timeout)
             return r.status_code == 200
         except httpx.HTTPError as e:
             logger.error("PCE health check failed: %s", e)
@@ -92,9 +92,13 @@ class PCEClient:
         except httpx.HTTPStatusError as e:
             logger.error("Failed to fetch events (HTTP %d): %s", e.response.status_code, e)
             return []
+        except (httpx.ConnectError, httpx.ConnectTimeout, httpx.ReadTimeout) as e:
+            # Connection-level failures bubble up so the event loop can track them
+            logger.error("PCE connection failed: %s", e)
+            raise
         except httpx.HTTPError as e:
             logger.error("Failed to fetch events: %s", e)
-            return []
+            raise
 
     # ------------------------------------------------------------------
     # Traffic flow async queries

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import queue
 import threading
+from datetime import datetime, timezone
 from typing import Any
 
 
@@ -21,6 +22,24 @@ class StatsTracker:
         self._timeline_max = timeline_max
         self._sse_subscribers: list[queue.Queue[str]] = []
         self._sse_lock = threading.Lock()
+        # PCE connection status
+        self._pce_status: str = "unknown"  # "connected", "error", "unknown"
+        self._pce_last_error: str = ""
+        self._pce_last_success: str = ""
+        self._pce_consecutive_failures: int = 0
+
+    def record_pce_success(self) -> None:
+        with self._lock:
+            self._pce_status = "connected"
+            self._pce_last_success = datetime.now(timezone.utc).isoformat()
+            self._pce_consecutive_failures = 0
+            self._pce_last_error = ""
+
+    def record_pce_error(self, error: str) -> None:
+        with self._lock:
+            self._pce_status = "error"
+            self._pce_last_error = error
+            self._pce_consecutive_failures += 1
 
     def record_event(self, event_type: str) -> None:
         with self._lock:
@@ -100,4 +119,8 @@ class StatsTracker:
                 "plugin_stats": dict(self._plugin_stats),
                 "event_stats": dict(self._event_stats),
                 "event_timeline": list(self._event_timeline),
+                "pce_status": self._pce_status,
+                "pce_last_error": self._pce_last_error,
+                "pce_last_success": self._pce_last_success,
+                "pce_consecutive_failures": self._pce_consecutive_failures,
             }
