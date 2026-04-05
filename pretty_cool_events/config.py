@@ -138,6 +138,25 @@ class WatcherAction(BaseModel):
     extra_data: dict[str, Any] = Field(default_factory=dict)
 
 
+class TrafficWatcher(BaseModel):
+    """A saved traffic flow query with notification routing."""
+
+    name: str
+    src_include: str = ""
+    src_exclude: str = ""
+    dst_include: str = ""
+    dst_exclude: str = ""
+    services_include: str = ""
+    services_exclude: str = ""
+    policy_decisions: list[str] = Field(
+        default_factory=lambda: ["blocked", "potentially_blocked"]
+    )
+    plugin: str = "PCEStdout"
+    template: str = "default.html"
+    interval: str = "24h"
+    max_results: int = 500
+
+
 class AppConfig(BaseModel):
     """Top-level application configuration."""
 
@@ -147,6 +166,7 @@ class AppConfig(BaseModel):
     traffic_worker: bool = False
     plugin_config: dict[str, dict[str, Any]] = Field(default_factory=dict)
     watchers: dict[str, list[WatcherAction]] = Field(default_factory=dict)
+    traffic_watchers: list[TrafficWatcher] = Field(default_factory=list)
     config_path: str | None = Field(default=None, exclude=True)
 
     @field_validator("watchers", mode="before")
@@ -224,6 +244,8 @@ def _normalize_raw_config(raw: dict[str, Any]) -> dict[str, Any]:
     raw_plugin_config = config_section.get("plugin_config", {}) or {}
     plugin_config = {k: (v if v is not None else {}) for k, v in raw_plugin_config.items()}
 
+    traffic_watchers_section = raw.get("traffic_watchers", [])
+
     return {
         "pce": pce_config,
         "httpd": httpd_config,
@@ -231,6 +253,7 @@ def _normalize_raw_config(raw: dict[str, Any]) -> dict[str, Any]:
         "traffic_worker": config_section.get("traffic_worker", False),
         "plugin_config": plugin_config,
         "watchers": watchers_section,
+        "traffic_watchers": traffic_watchers_section or [],
     }
 
 
@@ -287,7 +310,11 @@ def save_config(config: AppConfig, path: Path | str, backup: bool = True) -> Non
     for pattern, actions in config.watchers.items():
         watchers_out[pattern] = [a.model_dump() for a in actions]
 
-    output = {"config": flat_config, "watchers": watchers_out}
+    traffic_watchers_out = [tw.model_dump() for tw in config.traffic_watchers]
+
+    output: dict[str, Any] = {"config": flat_config, "watchers": watchers_out}
+    if traffic_watchers_out:
+        output["traffic_watchers"] = traffic_watchers_out
 
     with open(path, "w") as f:
         yaml.dump(output, f, default_flow_style=False, sort_keys=False)

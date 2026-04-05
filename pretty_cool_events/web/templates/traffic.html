@@ -147,12 +147,26 @@
             <th>Proto</th>
             <th style="cursor:pointer" onclick="sortFlows('Reported Policy Decision')">Decision</th>
             <th style="cursor:pointer" onclick="sortFlows('Num Flows')">Flows</th>
-            <th>Details</th>
+            <th></th>
           </tr>
         </thead>
         <tbody id="flows-body"></tbody>
       </table>
     </div>
+  </div>
+</div>
+
+<!-- Existing traffic watchers -->
+<div class="card mt-4 d-none" id="tw-card">
+  <div class="card-header d-flex justify-content-between">
+    <span><i class="bi bi-eye"></i> Traffic Watchers</span>
+    <span class="badge bg-primary" id="tw-count">0</span>
+  </div>
+  <div class="card-body p-0">
+    <table class="table table-sm mb-0">
+      <thead><tr><th>Name</th><th>Sources</th><th>Destinations</th><th>Services</th><th>Decisions</th><th>Plugin</th><th></th></tr></thead>
+      <tbody id="tw-body"></tbody>
+    </table>
   </div>
 </div>
 
@@ -165,7 +179,114 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body" id="flowModalBody"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary" onclick="openTrafficWatcherBuilder(currentFlowIdx)">
+          <i class="bi bi-eye"></i> Create Traffic Watcher
+        </button>
+      </div>
     </div>
+  </div>
+</div>
+
+<!-- Traffic watcher builder modal -->
+<div class="modal fade" id="twModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title"><i class="bi bi-eye"></i> Create Traffic Watcher from Flow</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-light" id="tw-preview"></div>
+        <div class="row g-3 mb-3">
+          <div class="col-md-6">
+            <label class="form-label fw-bold">Watcher Name</label>
+            <input type="text" class="form-control" id="tw-name" placeholder="e.g. blocked-to-payment-db">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-bold">Plugin</label>
+            <select class="form-select" id="tw-plugin">
+              {% for name in config.plugin_config.keys() %}
+              <option value="{{ name }}">{{ name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-bold">Check Interval</label>
+            <select class="form-select" id="tw-interval">
+              <option value="1h">Every hour</option>
+              <option value="6h">Every 6 hours</option>
+              <option value="24h" selected>Daily</option>
+            </select>
+          </div>
+        </div>
+        <div class="row g-3 mb-3">
+          <div class="col-md-6">
+            <label class="form-label">Sources Include</label>
+            <input type="text" class="form-control" id="tw-src-include" list="label-suggestions">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label text-danger">Sources Exclude</label>
+            <input type="text" class="form-control" id="tw-src-exclude" list="label-suggestions">
+          </div>
+        </div>
+        <div class="row g-3 mb-3">
+          <div class="col-md-6">
+            <label class="form-label">Destinations Include</label>
+            <input type="text" class="form-control" id="tw-dst-include" list="label-suggestions">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label text-danger">Destinations Exclude</label>
+            <input type="text" class="form-control" id="tw-dst-exclude" list="label-suggestions">
+          </div>
+        </div>
+        <div class="row g-3 mb-3">
+          <div class="col-md-6">
+            <label class="form-label">Services</label>
+            <input type="text" class="form-control" id="tw-svc-include" placeholder="e.g. 3306/tcp">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Policy Decisions</label>
+            <div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" id="tw-pd-blocked" value="blocked" checked>
+                <label class="form-check-label">Blocked</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" id="tw-pd-pot" value="potentially_blocked" checked>
+                <label class="form-check-label">Pot. Blocked</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" id="tw-pd-allowed" value="allowed">
+                <label class="form-check-label">Allowed</label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="mb-0">
+          <label class="form-label fw-bold">Config Preview</label>
+          <pre class="bg-body-tertiary p-3 rounded small" id="tw-yaml"></pre>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="submitTrafficWatcher()">
+          <i class="bi bi-check-circle"></i> Create Traffic Watcher
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+  <div id="toast" class="toast" role="alert">
+    <div class="toast-header">
+      <strong class="me-auto" id="toast-title">Notification</strong>
+      <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+    </div>
+    <div class="toast-body" id="toast-body"></div>
   </div>
 </div>
 {% endblock %}
@@ -177,6 +298,7 @@ let allFlows = [];
 let filteredFlows = [];
 let flowSortKey = 'Reported Policy Decision';
 let flowSortAsc = true;
+let currentFlowIdx = -1;
 
 // Build datalist for autocomplete
 const dl = document.getElementById('label-suggestions');
@@ -361,8 +483,11 @@ function renderFlows() {
       <td>${f['Protocol']}</td>
       <td>${decisionBadge(f['Reported Policy Decision'])}</td>
       <td>${f['Num Flows']}</td>
-      <td>
-        <button class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="showFlow(${i})">
+      <td class="text-nowrap">
+        <button class="btn btn-sm btn-outline-primary py-0 px-1" onclick="openTrafficWatcherBuilder(${i})" title="Create watcher">
+          <i class="bi bi-eye"></i>
+        </button>
+        <button class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="showFlow(${i})" title="Details">
           <i class="bi bi-info-circle"></i>
         </button>
       </td>
@@ -371,6 +496,7 @@ function renderFlows() {
 }
 
 function showFlow(idx) {
+  currentFlowIdx = idx;
   const f = filteredFlows[idx];
   const srcLabel = [f['Source Application'], f['Source Environment'], f['Source Role']].filter(Boolean).join(' / ');
   const dstLabel = [f['Destination Application'], f['Destination Environment'], f['Destination Role']].filter(Boolean).join(' / ');
@@ -404,6 +530,165 @@ function showFlow(idx) {
   document.getElementById('flowModalBody').innerHTML = html;
   new bootstrap.Modal(document.getElementById('flowModal')).show();
 }
+
+// ---- Traffic watcher builder ----
+function openTrafficWatcherBuilder(idx) {
+  const detailModal = bootstrap.Modal.getInstance(document.getElementById('flowModal'));
+  if (detailModal) detailModal.hide();
+
+  const f = filteredFlows[idx];
+  const srcApp = f['Source Application'] || '';
+  const srcEnv = f['Source Environment'] || '';
+  const srcRole = f['Source Role'] || '';
+  const dstApp = f['Destination Application'] || '';
+  const dstEnv = f['Destination Environment'] || '';
+  const dstRole = f['Destination Role'] || '';
+  const port = f['Port'] || '';
+  const proto = (f['Protocol'] || 'TCP').toLowerCase();
+  const decision = f['Reported Policy Decision'] || '';
+
+  // Build human-readable label expressions from the flow
+  const srcParts = [];
+  if (srcApp) srcParts.push('app=' + srcApp);
+  if (srcEnv) srcParts.push('env=' + srcEnv);
+  if (srcRole) srcParts.push('role=' + srcRole);
+  const dstParts = [];
+  if (dstApp) dstParts.push('app=' + dstApp);
+  if (dstEnv) dstParts.push('env=' + dstEnv);
+  if (dstRole) dstParts.push('role=' + dstRole);
+
+  document.getElementById('tw-preview').innerHTML =
+    `<strong>${f['Source Hostname'] || f['Source IP']}</strong> (${srcParts.join(', ')}) ` +
+    `&rarr; <strong>${f['Destination Hostname'] || f['Destination IP']}</strong> (${dstParts.join(', ')}) ` +
+    `:${port}/${proto} = ${decisionBadge(decision)}`;
+
+  // Pre-fill fields
+  document.getElementById('tw-name').value =
+    (decision.toLowerCase().replace(' ', '-') + '-' + (dstApp || 'traffic') + '-' + port).replace(/\s+/g, '-');
+  document.getElementById('tw-src-include').value = srcParts.join(', ');
+  document.getElementById('tw-src-exclude').value = '';
+  document.getElementById('tw-dst-include').value = dstParts.join(', ');
+  document.getElementById('tw-dst-exclude').value = '';
+  document.getElementById('tw-svc-include').value = port ? port + '/' + proto : '';
+
+  // Pre-select decision checkboxes
+  document.getElementById('tw-pd-blocked').checked = decision.includes('Blocked') || decision.includes('blocked');
+  document.getElementById('tw-pd-pot').checked = decision.includes('Potentially') || decision.includes('potentially');
+  document.getElementById('tw-pd-allowed').checked = decision === 'Allowed';
+
+  updateTwYaml();
+  // Wire up live preview
+  document.querySelectorAll('#twModal input, #twModal select').forEach(el => {
+    el.oninput = updateTwYaml;
+    el.onchange = updateTwYaml;
+  });
+
+  new bootstrap.Modal(document.getElementById('twModal')).show();
+}
+
+function updateTwYaml() {
+  const decisions = [];
+  if (document.getElementById('tw-pd-blocked').checked) decisions.push('blocked');
+  if (document.getElementById('tw-pd-pot').checked) decisions.push('potentially_blocked');
+  if (document.getElementById('tw-pd-allowed').checked) decisions.push('allowed');
+
+  const yaml = `traffic_watchers:
+  - name: "${document.getElementById('tw-name').value}"
+    src_include: "${document.getElementById('tw-src-include').value}"
+    src_exclude: "${document.getElementById('tw-src-exclude').value}"
+    dst_include: "${document.getElementById('tw-dst-include').value}"
+    dst_exclude: "${document.getElementById('tw-dst-exclude').value}"
+    services_include: "${document.getElementById('tw-svc-include').value}"
+    policy_decisions: [${decisions.map(d => '"' + d + '"').join(', ')}]
+    plugin: ${document.getElementById('tw-plugin').value}
+    interval: ${document.getElementById('tw-interval').value}`;
+  document.getElementById('tw-yaml').textContent = yaml;
+}
+
+function submitTrafficWatcher() {
+  const decisions = [];
+  if (document.getElementById('tw-pd-blocked').checked) decisions.push('blocked');
+  if (document.getElementById('tw-pd-pot').checked) decisions.push('potentially_blocked');
+  if (document.getElementById('tw-pd-allowed').checked) decisions.push('allowed');
+
+  const payload = {
+    name: document.getElementById('tw-name').value,
+    src_include: document.getElementById('tw-src-include').value,
+    src_exclude: document.getElementById('tw-src-exclude').value,
+    dst_include: document.getElementById('tw-dst-include').value,
+    dst_exclude: document.getElementById('tw-dst-exclude').value,
+    services_include: document.getElementById('tw-svc-include').value,
+    services_exclude: document.getElementById('tw-svc-exclude') ? document.getElementById('tw-svc-exclude').value : '',
+    policy_decisions: decisions,
+    plugin: document.getElementById('tw-plugin').value,
+    template: 'default.html',
+    interval: document.getElementById('tw-interval').value,
+    max_results: 500,
+  };
+
+  fetch('{{ url_for("main.api_traffic_watcher_create") }}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload),
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.ok) {
+      bootstrap.Modal.getInstance(document.getElementById('twModal')).hide();
+      showToast('Traffic Watcher Created', `<strong>${data.name}</strong> &rarr; ${data.plugin}`);
+      loadTrafficWatchers();
+    } else {
+      showToast('Error', data.error || 'Failed', true);
+    }
+  })
+  .catch(err => showToast('Error', String(err), true));
+}
+
+function deleteTrafficWatcher(index) {
+  if (!confirm('Delete this traffic watcher?')) return;
+  fetch('{{ url_for("main.api_traffic_watcher_delete", index=0) }}'.replace('/0', '/' + index), {
+    method: 'DELETE',
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.ok) {
+      showToast('Removed', 'Traffic watcher removed');
+      loadTrafficWatchers();
+    }
+  });
+}
+
+function loadTrafficWatchers() {
+  fetch('{{ url_for("main.api_traffic_watchers_list") }}')
+  .then(r => r.json())
+  .then(watchers => {
+    const card = document.getElementById('tw-card');
+    const body = document.getElementById('tw-body');
+    document.getElementById('tw-count').textContent = watchers.length;
+    if (!watchers.length) { card.classList.add('d-none'); return; }
+    card.classList.remove('d-none');
+    body.innerHTML = watchers.map((tw, i) => `<tr>
+      <td><strong>${tw.name}</strong></td>
+      <td class="small"><code>${tw.src_include || '*'}</code>${tw.src_exclude ? ' <span class="text-danger">!' + tw.src_exclude + '</span>' : ''}</td>
+      <td class="small"><code>${tw.dst_include || '*'}</code>${tw.dst_exclude ? ' <span class="text-danger">!' + tw.dst_exclude + '</span>' : ''}</td>
+      <td class="small"><code>${tw.services_include || 'any'}</code></td>
+      <td class="small">${tw.policy_decisions.map(d => d === 'allowed' ? '<span class="badge bg-success">A</span>' : d === 'blocked' ? '<span class="badge bg-danger">B</span>' : '<span class="badge bg-warning text-dark">PB</span>').join(' ')}</td>
+      <td>${tw.plugin}</td>
+      <td><button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="deleteTrafficWatcher(${i})"><i class="bi bi-trash"></i></button></td>
+    </tr>`).join('');
+  });
+}
+
+function showToast(title, body, isError) {
+  document.getElementById('toast-title').textContent = title;
+  document.getElementById('toast-body').innerHTML = body;
+  const el = document.getElementById('toast');
+  el.classList.toggle('text-bg-danger', !!isError);
+  bootstrap.Toast.getOrCreateInstance(el).show();
+}
+
+// Load traffic watchers on page load
+document.addEventListener('DOMContentLoaded', loadTrafficWatchers);
 
 function exportTrafficCSV() {
   if (!allFlows.length) return;

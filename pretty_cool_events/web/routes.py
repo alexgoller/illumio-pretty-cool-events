@@ -25,7 +25,13 @@ from flask import (
 )
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from pretty_cool_events.config import AppConfig, WatcherAction, load_event_types, save_config
+from pretty_cool_events.config import (
+    AppConfig,
+    TrafficWatcher,
+    WatcherAction,
+    load_event_types,
+    save_config,
+)
 from pretty_cool_events.label_resolver import LabelResolver
 from pretty_cool_events.plugin_meta import PLUGIN_METADATA
 
@@ -200,6 +206,10 @@ def diagram_page() -> str:
         "diagram.html",
         watchers_json=json.dumps(
             {p: [a.model_dump() for a in actions] for p, actions in config.watchers.items()},
+            default=str,
+        ),
+        traffic_watchers_json=json.dumps(
+            [tw.model_dump() for tw in config.traffic_watchers],
             default=str,
         ),
         plugin_meta_json=json.dumps(meta_map),
@@ -483,6 +493,61 @@ def api_traffic_download() -> Any:
     reader = csv.DictReader(io.StringIO(csv_text))
     rows = list(reader)
     return jsonify({"flows": rows, "total": len(rows)})
+
+
+@bp.route("/api/traffic/watchers", methods=["GET"])
+@_auth_required
+def api_traffic_watchers_list() -> Any:
+    """List configured traffic watchers."""
+    config = _get_config()
+    return jsonify([tw.model_dump() for tw in config.traffic_watchers])
+
+
+@bp.route("/api/traffic/watchers", methods=["POST"])
+@_auth_required
+def api_traffic_watcher_create() -> Any:
+    """Create a traffic watcher from a flow or manual input."""
+    config = _get_config()
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No JSON body"}), 400
+
+    name = data.get("name", "")
+    if not name:
+        return jsonify({"error": "name is required"}), 400
+
+    tw = TrafficWatcher(
+        name=name,
+        src_include=data.get("src_include", ""),
+        src_exclude=data.get("src_exclude", ""),
+        dst_include=data.get("dst_include", ""),
+        dst_exclude=data.get("dst_exclude", ""),
+        services_include=data.get("services_include", ""),
+        services_exclude=data.get("services_exclude", ""),
+        policy_decisions=data.get("policy_decisions",
+                                  ["blocked", "potentially_blocked"]),
+        plugin=data.get("plugin", "PCEStdout"),
+        template=data.get("template", "default.html"),
+        interval=data.get("interval", "24h"),
+        max_results=int(data.get("max_results", 500)),
+    )
+
+    config.traffic_watchers.append(tw)
+    _persist_config()
+    logger.info("Traffic watcher created: %s -> %s", name, tw.plugin)
+    return jsonify({"ok": True, "name": name, "plugin": tw.plugin})
+
+
+@bp.route("/api/traffic/watchers/<int:index>", methods=["DELETE"])
+@_auth_required
+def api_traffic_watcher_delete(index: int) -> Any:
+    """Delete a traffic watcher by index."""
+    config = _get_config()
+    if 0 <= index < len(config.traffic_watchers):
+        removed = config.traffic_watchers.pop(index)
+        _persist_config()
+        return jsonify({"ok": True, "removed": removed.name})
+    return jsonify({"error": "Index out of range"}), 404
 
 
 @bp.route("/api/render", methods=["POST"])

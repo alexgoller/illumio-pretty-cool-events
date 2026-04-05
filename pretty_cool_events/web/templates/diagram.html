@@ -13,6 +13,18 @@
   </div>
 </div>
 
+<!-- Traffic watchers diagram -->
+{% if config.traffic_watchers %}
+<h4 class="mt-4 mb-3"><i class="bi bi-arrow-left-right"></i> Traffic Watchers</h4>
+<div class="card">
+  <div class="card-body p-0">
+    <div style="overflow-x:auto;">
+      <svg id="traffic-diagram" width="100%" height="200" style="min-width:800px;"></svg>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <div class="card mt-4">
   <div class="card-header">Legend</div>
   <div class="card-body">
@@ -21,6 +33,7 @@
       <div><svg width="18" height="18"><rect width="18" height="18" rx="4" fill="#0d6efd"/></svg> Watcher Pattern</div>
       <div><svg width="18" height="18"><rect width="18" height="18" rx="4" fill="#6c757d"/></svg> Filter (status/severity)</div>
       <div><svg width="18" height="18"><rect width="18" height="18" rx="4" fill="#198754"/></svg> Plugin Output</div>
+      <div><svg width="18" height="18"><rect width="18" height="18" rx="4" fill="#e65100"/></svg> Traffic Watcher</div>
     </div>
   </div>
 </div>
@@ -29,6 +42,7 @@
 {% block scripts %}
 <script>
 const watchers = {{ watchers_json | safe }};
+const trafficWatchers = {{ traffic_watchers_json | safe }};
 const pluginMeta = {{ plugin_meta_json | safe }};
 const pceFqdn = {{ config.pce.pce | tojson }};
 
@@ -260,5 +274,96 @@ headers.forEach(h => {
   t.textContent = h.label;
   svg.appendChild(t);
 });
+
+// ---- Traffic watchers diagram ----
+if (trafficWatchers.length > 0) {
+  const tSvg = document.getElementById('traffic-diagram');
+  if (tSvg) {
+    const T_COL_PCE = 80, T_COL_WATCHER = 340, T_COL_PLUGIN = 680;
+    const T_ROW_START = 60, T_ROW_GAP = 70;
+    const tHeight = T_ROW_START + trafficWatchers.length * T_ROW_GAP + 20;
+    tSvg.setAttribute('height', tHeight);
+    tSvg.setAttribute('viewBox', `0 0 900 ${tHeight}`);
+
+    tSvg.innerHTML = `<defs>
+      <marker id="t-arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#adb5bd"/>
+      </marker>
+      <marker id="t-arrow-g" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#198754"/>
+      </marker>
+    </defs>`;
+
+    function tNode(svg, x, y, w, h, label, sub, color, textColor) {
+      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      const r = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      r.setAttribute('x', x); r.setAttribute('y', y); r.setAttribute('width', w); r.setAttribute('height', h);
+      r.setAttribute('rx', '8'); r.setAttribute('fill', color); r.setAttribute('filter', 'drop-shadow(0 1px 2px rgba(0,0,0,0.15))');
+      g.appendChild(r);
+      const t1 = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      t1.setAttribute('x', x+w/2); t1.setAttribute('y', y+18); t1.setAttribute('text-anchor', 'middle');
+      t1.setAttribute('fill', textColor); t1.setAttribute('font-size', '13'); t1.setAttribute('font-weight', 'bold');
+      t1.setAttribute('font-family', '-apple-system, sans-serif');
+      const mx = Math.floor(w/8);
+      t1.textContent = label.length > mx ? label.substring(0, mx-1) + '...' : label;
+      g.appendChild(t1);
+      if (sub) {
+        const t2 = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        t2.setAttribute('x', x+w/2); t2.setAttribute('y', y+34); t2.setAttribute('text-anchor', 'middle');
+        t2.setAttribute('fill', textColor); t2.setAttribute('font-size', '10'); t2.setAttribute('opacity', '0.75');
+        t2.setAttribute('font-family', '-apple-system, sans-serif');
+        const mx2 = Math.floor(w/6);
+        t2.textContent = sub.length > mx2 ? sub.substring(0, mx2-1) + '...' : sub;
+        g.appendChild(t2);
+      }
+      svg.appendChild(g);
+      return {x, y, w, h};
+    }
+
+    function tConn(svg, n1, n2, color, marker) {
+      const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      const x1=n1.x+n1.w, y1=n1.y+n1.h/2, x2=n2.x, y2=n2.y+n2.h/2;
+      const dx = (x2-x1)*0.5;
+      p.setAttribute('d', `M${x1},${y1} C${x1+dx},${y1} ${x2-dx},${y2} ${x2},${y2}`);
+      p.setAttribute('fill', 'none'); p.setAttribute('stroke', color); p.setAttribute('stroke-width', '2');
+      p.setAttribute('marker-end', marker);
+      svg.appendChild(p);
+    }
+
+    // PCE traffic source
+    const pceY = T_ROW_START + (trafficWatchers.length - 1) * T_ROW_GAP / 2;
+    const tPce = tNode(tSvg, T_COL_PCE-90, pceY-22, 180, 44, 'PCE Traffic Flows', pceFqdn, '#1a1a2e', '#fff');
+
+    // Deduplicate plugins
+    const tPluginSet = {};
+    trafficWatchers.forEach((tw, i) => {
+      const y = T_ROW_START + i * T_ROW_GAP;
+      const decisions = tw.policy_decisions.map(d => d === 'allowed' ? 'A' : d === 'blocked' ? 'B' : 'PB').join('+');
+      const desc = [tw.src_include, tw.dst_include, tw.services_include].filter(Boolean).join(' | ') || 'all traffic';
+      const wNode = tNode(tSvg, T_COL_WATCHER-120, y-22, 240, 44, tw.name, decisions + ' — ' + desc, '#e65100', '#fff');
+      tConn(tSvg, tPce, wNode, '#adb5bd', 'url(#t-arrow)');
+
+      if (!tPluginSet[tw.plugin]) tPluginSet[tw.plugin] = {rows: []};
+      tPluginSet[tw.plugin].rows.push({y: y, node: wNode});
+    });
+
+    Object.entries(tPluginSet).forEach(([pName, info]) => {
+      const avgY = info.rows.reduce((s, r) => s + r.y, 0) / info.rows.length;
+      const meta = pluginMeta[pName] || {display_name: pName};
+      const pNode = tNode(tSvg, T_COL_PLUGIN-90, avgY-22, 180, 44, meta.display_name, pName, '#198754', '#fff');
+      info.rows.forEach(r => tConn(tSvg, r.node, pNode, '#198754', 'url(#t-arrow-g)'));
+    });
+
+    // Column headers
+    [{x: T_COL_PCE, l: 'Traffic Source'}, {x: T_COL_WATCHER, l: 'Traffic Watchers'}, {x: T_COL_PLUGIN, l: 'Plugin Outputs'}].forEach(h => {
+      const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      t.setAttribute('x', h.x); t.setAttribute('y', 24); t.setAttribute('text-anchor', 'middle');
+      t.setAttribute('fill', '#6c757d'); t.setAttribute('font-size', '12'); t.setAttribute('font-weight', 'bold');
+      t.setAttribute('font-family', '-apple-system, sans-serif');
+      t.textContent = h.l;
+      tSvg.appendChild(t);
+    });
+  }
+}
 </script>
 {% endblock %}
