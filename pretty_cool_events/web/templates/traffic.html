@@ -1,0 +1,422 @@
+{% extends "base.html" %}
+
+{% block title %}Traffic Explorer{% endblock %}
+
+{% block content %}
+<h2 class="mb-4"><i class="bi bi-arrow-left-right"></i> Traffic Explorer</h2>
+
+<!-- Query builder -->
+<div class="card mb-4">
+  <div class="card-header">Query Builder</div>
+  <div class="card-body">
+    <div class="row g-3 mb-3">
+      <div class="col-md-3">
+        <label class="form-label">Time Range</label>
+        <select class="form-select" id="q-time">
+          <option value="1h">Last 1 hour</option>
+          <option value="6h">Last 6 hours</option>
+          <option value="24h" selected>Last 24 hours</option>
+          <option value="3d">Last 3 days</option>
+          <option value="7d">Last 7 days</option>
+          <option value="30d">Last 30 days</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Policy Decisions</label>
+        <div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="checkbox" id="pd-allowed" value="allowed" checked>
+            <label class="form-check-label" for="pd-allowed">Allowed</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="checkbox" id="pd-blocked" value="blocked" checked>
+            <label class="form-check-label text-danger" for="pd-blocked">Blocked</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="checkbox" id="pd-pot-blocked" value="potentially_blocked" checked>
+            <label class="form-check-label text-warning" for="pd-pot-blocked">Potentially Blocked</label>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Max Results</label>
+        <select class="form-select" id="q-max">
+          <option value="50">50</option>
+          <option value="200">200</option>
+          <option value="500" selected>500</option>
+          <option value="1000">1000</option>
+          <option value="5000">5000</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Src/Dst Logic</label>
+        <select class="form-select" id="q-op">
+          <option value="and" selected>AND</option>
+          <option value="or">OR</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Source labels -->
+    <div class="row g-3 mb-3">
+      <div class="col-md-6">
+        <label class="form-label fw-bold text-primary">Sources Include</label>
+        <input type="text" class="form-control label-input" id="q-src-include"
+               placeholder="e.g. env=prod, bu=banking" list="label-suggestions">
+        <div class="form-text">Labels that source workloads must have. Comma-separated = AND.</div>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label fw-bold text-danger">Sources Exclude</label>
+        <input type="text" class="form-control label-input" id="q-src-exclude"
+               placeholder="e.g. env=dev, env=staging" list="label-suggestions">
+        <div class="form-text">Labels to exclude from sources.</div>
+      </div>
+    </div>
+
+    <!-- Destination labels -->
+    <div class="row g-3 mb-3">
+      <div class="col-md-6">
+        <label class="form-label fw-bold text-primary">Destinations Include</label>
+        <input type="text" class="form-control label-input" id="q-dst-include"
+               placeholder="e.g. app=payment, role=db" list="label-suggestions">
+        <div class="form-text">Labels that destination workloads must have.</div>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label fw-bold text-danger">Destinations Exclude</label>
+        <input type="text" class="form-control label-input" id="q-dst-exclude"
+               placeholder="e.g. env=dev" list="label-suggestions">
+      </div>
+    </div>
+
+    <!-- Services -->
+    <div class="row g-3 mb-3">
+      <div class="col-md-6">
+        <label class="form-label fw-bold">Services Include</label>
+        <input type="text" class="form-control" id="q-svc-include"
+               placeholder="e.g. 443/tcp, 3306/tcp, 53/udp">
+        <div class="form-text">Port/protocol pairs. Leave empty for all services.</div>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label fw-bold text-danger">Services Exclude</label>
+        <input type="text" class="form-control" id="q-svc-exclude"
+               placeholder="e.g. 22/tcp">
+      </div>
+    </div>
+
+    <button class="btn btn-primary" onclick="submitQuery()" id="btn-query">
+      <i class="bi bi-search"></i> Run Query
+    </button>
+
+    <!-- Datalist for autocomplete -->
+    <datalist id="label-suggestions"></datalist>
+  </div>
+</div>
+
+<!-- Query status -->
+<div class="alert alert-info d-none" id="query-status">
+  <div class="d-flex align-items-center">
+    <div class="spinner-border spinner-border-sm me-2" id="query-spinner"></div>
+    <span id="query-status-text">Submitting query...</span>
+  </div>
+</div>
+
+<!-- Results -->
+<div class="card d-none" id="results-card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-table"></i> Traffic Flows</span>
+    <div>
+      <span class="text-muted me-3" id="results-summary"></span>
+      <button class="btn btn-sm btn-outline-secondary" onclick="exportTrafficCSV()">
+        <i class="bi bi-download"></i> CSV
+      </button>
+    </div>
+  </div>
+  <div class="card-body p-0">
+    <!-- Client-side filter -->
+    <div class="p-2 bg-body-tertiary border-bottom">
+      <input type="text" class="form-control form-control-sm" id="flow-filter"
+             placeholder="Filter flows... (hostname, app, IP, port, decision)" oninput="filterFlows()">
+    </div>
+    <div class="table-responsive" style="max-height:60vh; overflow-y:auto;">
+      <table class="table table-sm table-hover table-striped mb-0">
+        <thead class="sticky-top bg-body-tertiary">
+          <tr>
+            <th style="cursor:pointer" onclick="sortFlows('Source Hostname')">Source</th>
+            <th style="cursor:pointer" onclick="sortFlows('Destination Hostname')">Destination</th>
+            <th style="cursor:pointer" onclick="sortFlows('Port')">Port</th>
+            <th>Proto</th>
+            <th style="cursor:pointer" onclick="sortFlows('Reported Policy Decision')">Decision</th>
+            <th style="cursor:pointer" onclick="sortFlows('Num Flows')">Flows</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody id="flows-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Flow detail modal -->
+<div class="modal fade" id="flowModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="flowModalTitle">Flow Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="flowModalBody"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const allLabels = {{ labels_json | safe }};
+let allFlows = [];
+let filteredFlows = [];
+let flowSortKey = 'Reported Policy Decision';
+let flowSortAsc = true;
+
+// Build datalist for autocomplete
+const dl = document.getElementById('label-suggestions');
+const seen = new Set();
+allLabels.forEach(l => {
+  const val = l.key + '=' + l.value;
+  if (!seen.has(val)) {
+    seen.add(val);
+    const opt = document.createElement('option');
+    opt.value = val;
+    dl.appendChild(opt);
+  }
+});
+
+function decisionBadge(d) {
+  if (d === 'Allowed') return '<span class="badge bg-success">Allowed</span>';
+  if (d === 'Blocked') return '<span class="badge bg-danger">Blocked</span>';
+  return '<span class="badge bg-warning text-dark">Pot. Blocked</span>';
+}
+
+function submitQuery() {
+  const decisions = [];
+  if (document.getElementById('pd-allowed').checked) decisions.push('allowed');
+  if (document.getElementById('pd-blocked').checked) decisions.push('blocked');
+  if (document.getElementById('pd-pot-blocked').checked) decisions.push('potentially_blocked');
+
+  const query = {
+    since: document.getElementById('q-time').value,
+    policy_decisions: decisions,
+    max_results: parseInt(document.getElementById('q-max').value),
+    query_op: document.getElementById('q-op').value,
+    src_include: document.getElementById('q-src-include').value,
+    src_exclude: document.getElementById('q-src-exclude').value,
+    dst_include: document.getElementById('q-dst-include').value,
+    dst_exclude: document.getElementById('q-dst-exclude').value,
+    services_include: document.getElementById('q-svc-include').value,
+    services_exclude: document.getElementById('q-svc-exclude').value,
+  };
+
+  const statusDiv = document.getElementById('query-status');
+  const statusText = document.getElementById('query-status-text');
+  statusDiv.classList.remove('d-none', 'alert-danger');
+  statusDiv.classList.add('alert-info');
+  statusText.textContent = 'Submitting query to PCE...';
+  document.getElementById('query-spinner').classList.remove('d-none');
+  document.getElementById('btn-query').disabled = true;
+
+  fetch('{{ url_for("main.api_traffic_query") }}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(query),
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.error) {
+      statusText.textContent = 'Error: ' + data.error;
+      statusDiv.classList.replace('alert-info', 'alert-danger');
+      document.getElementById('query-spinner').classList.add('d-none');
+      document.getElementById('btn-query').disabled = false;
+      return;
+    }
+    statusText.textContent = 'Query submitted. Polling for results...';
+    pollForResults();
+  })
+  .catch(err => {
+    statusText.textContent = 'Error: ' + err;
+    statusDiv.classList.replace('alert-info', 'alert-danger');
+    document.getElementById('query-spinner').classList.add('d-none');
+    document.getElementById('btn-query').disabled = false;
+  });
+}
+
+function pollForResults() {
+  const statusText = document.getElementById('query-status-text');
+
+  fetch('{{ url_for("main.api_traffic_queries") }}')
+  .then(r => r.json())
+  .then(queries => {
+    // Find the most recent query
+    const latest = queries[queries.length - 1];
+    if (!latest) {
+      statusText.textContent = 'No queries found';
+      return;
+    }
+
+    if (latest.status === 'completed' && latest.result) {
+      statusText.textContent = `Query complete: ${latest.flows_count} flows. Downloading...`;
+      downloadResults(latest.result);
+    } else if (latest.status === 'failed') {
+      statusText.textContent = 'Query failed on the PCE.';
+      document.getElementById('query-status').classList.replace('alert-info', 'alert-danger');
+      document.getElementById('query-spinner').classList.add('d-none');
+      document.getElementById('btn-query').disabled = false;
+    } else {
+      statusText.textContent = `Query status: ${latest.status}. Polling...`;
+      setTimeout(pollForResults, 2000);
+    }
+  });
+}
+
+function downloadResults(href) {
+  const statusDiv = document.getElementById('query-status');
+  const statusText = document.getElementById('query-status-text');
+
+  fetch('{{ url_for("main.api_traffic_download") }}?href=' + encodeURIComponent(href))
+  .then(r => r.json())
+  .then(data => {
+    if (data.error) {
+      statusText.textContent = 'Download error: ' + data.error;
+      statusDiv.classList.replace('alert-info', 'alert-danger');
+      document.getElementById('query-spinner').classList.add('d-none');
+      document.getElementById('btn-query').disabled = false;
+      return;
+    }
+
+    allFlows = data.flows;
+    filteredFlows = allFlows;
+    statusDiv.classList.add('d-none');
+    document.getElementById('query-spinner').classList.add('d-none');
+    document.getElementById('btn-query').disabled = false;
+    document.getElementById('results-card').classList.remove('d-none');
+    document.getElementById('flow-filter').value = '';
+    sortAndRenderFlows();
+  });
+}
+
+function filterFlows() {
+  const q = document.getElementById('flow-filter').value.toLowerCase();
+  if (!q) { filteredFlows = allFlows; }
+  else {
+    filteredFlows = allFlows.filter(f =>
+      Object.values(f).some(v => String(v).toLowerCase().includes(q))
+    );
+  }
+  sortAndRenderFlows();
+}
+
+function sortFlows(key) {
+  if (flowSortKey === key) flowSortAsc = !flowSortAsc;
+  else { flowSortKey = key; flowSortAsc = true; }
+  sortAndRenderFlows();
+}
+
+function sortAndRenderFlows() {
+  filteredFlows.sort((a, b) => {
+    let va = a[flowSortKey] || '', vb = b[flowSortKey] || '';
+    // Try numeric sort for port/flows
+    const na = parseFloat(va), nb = parseFloat(vb);
+    if (!isNaN(na) && !isNaN(nb)) { va = na; vb = nb; }
+    else { va = String(va).toLowerCase(); vb = String(vb).toLowerCase(); }
+    return va < vb ? (flowSortAsc ? -1 : 1) : va > vb ? (flowSortAsc ? 1 : -1) : 0;
+  });
+  renderFlows();
+}
+
+function renderFlows() {
+  const body = document.getElementById('flows-body');
+  document.getElementById('results-summary').textContent =
+    filteredFlows.length + ' of ' + allFlows.length + ' flows';
+
+  if (!filteredFlows.length) {
+    body.innerHTML = '<tr><td colspan="7" class="text-center text-muted p-3">No flows match</td></tr>';
+    return;
+  }
+
+  body.innerHTML = filteredFlows.map((f, i) => {
+    const srcLabel = [f['Source Application'], f['Source Environment'], f['Source Role']].filter(Boolean).join('/');
+    const dstLabel = [f['Destination Application'], f['Destination Environment'], f['Destination Role']].filter(Boolean).join('/');
+    const srcHost = f['Source Hostname'] || f['Source IP'] || '?';
+    const dstHost = f['Destination Hostname'] || f['Destination IP'] || '?';
+
+    return `<tr>
+      <td class="small">
+        <strong>${srcHost}</strong>
+        ${srcLabel ? '<br><span class="text-muted">' + srcLabel + '</span>' : ''}
+      </td>
+      <td class="small">
+        <strong>${dstHost}</strong>
+        ${dstLabel ? '<br><span class="text-muted">' + dstLabel + '</span>' : ''}
+      </td>
+      <td><code>${f['Port']}</code></td>
+      <td>${f['Protocol']}</td>
+      <td>${decisionBadge(f['Reported Policy Decision'])}</td>
+      <td>${f['Num Flows']}</td>
+      <td>
+        <button class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="showFlow(${i})">
+          <i class="bi bi-info-circle"></i>
+        </button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function showFlow(idx) {
+  const f = filteredFlows[idx];
+  const srcLabel = [f['Source Application'], f['Source Environment'], f['Source Role']].filter(Boolean).join(' / ');
+  const dstLabel = [f['Destination Application'], f['Destination Environment'], f['Destination Role']].filter(Boolean).join(' / ');
+
+  document.getElementById('flowModalTitle').textContent =
+    (f['Source Hostname'] || f['Source IP']) + ' → ' + (f['Destination Hostname'] || f['Destination IP']);
+
+  // Build detail table from all fields
+  const groups = {
+    'Connection': ['Port', 'Protocol', 'Transmission', 'Num Flows', 'Connection State',
+                   'Reported Policy Decision', 'Reported Enforcement Boundary', 'Reported by',
+                   'First Detected', 'Last Detected', 'Network', 'Bytes In', 'Bytes Out'],
+    'Source': Object.keys(f).filter(k => k.startsWith('Source ')),
+    'Destination': Object.keys(f).filter(k => k.startsWith('Destination ')),
+  };
+
+  let html = '';
+  for (const [group, keys] of Object.entries(groups)) {
+    html += `<h6 class="mt-3 mb-2">${group}</h6><table class="table table-sm mb-0">`;
+    for (const key of keys) {
+      const val = f[key];
+      if (!val) continue;
+      const shortKey = key.replace('Source ', '').replace('Destination ', '');
+      const highlight = (key === 'Reported Policy Decision' && val !== 'Allowed')
+        ? ' class="text-danger fw-bold"' : '';
+      html += `<tr><td class="text-muted" width="40%">${shortKey}</td><td${highlight}>${val}</td></tr>`;
+    }
+    html += '</table>';
+  }
+
+  document.getElementById('flowModalBody').innerHTML = html;
+  new bootstrap.Modal(document.getElementById('flowModal')).show();
+}
+
+function exportTrafficCSV() {
+  if (!allFlows.length) return;
+  const headers = Object.keys(allFlows[0]);
+  const rows = filteredFlows.map(f =>
+    headers.map(h => '"' + String(f[h] || '').replace(/"/g, '""') + '"').join(',')
+  );
+  const csv = headers.join(',') + '\n' + rows.join('\n');
+  const blob = new Blob([csv], {type: 'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'traffic-flows.csv';
+  a.click();
+}
+</script>
+{% endblock %}

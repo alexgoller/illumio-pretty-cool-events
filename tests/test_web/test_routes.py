@@ -296,3 +296,21 @@ class TestWebRoutes:
         """SSE endpoint returns event-stream content type."""
         response = client.get("/api/stream")
         assert response.content_type.startswith("text/event-stream")
+
+    def test_traffic_page(self, client: FlaskClient) -> None:
+        response = client.get("/traffic")
+        assert response.status_code == 200
+        assert b"Traffic Explorer" in response.data
+        assert b"Query Builder" in response.data
+
+    def test_api_traffic_labels(self, client: FlaskClient) -> None:
+        """Labels endpoint returns empty when no PCE client."""
+        response = client.get("/api/traffic/labels")
+        assert response.status_code == 200
+
+    def test_api_traffic_query_no_client(self, client: FlaskClient) -> None:
+        response = client.post("/api/traffic/query", json={
+            "src_include": "env=prod",
+            "policy_decisions": ["blocked"],
+        })
+        assert response.status_code == 503

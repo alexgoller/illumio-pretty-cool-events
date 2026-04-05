@@ -26,6 +26,7 @@ from flask import (
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from pretty_cool_events.config import AppConfig, WatcherAction, load_event_types, save_config
+from pretty_cool_events.label_resolver import LabelResolver
 from pretty_cool_events.plugin_meta import PLUGIN_METADATA
 
 logger = logging.getLogger(__name__)
@@ -47,6 +48,22 @@ def _get_stats() -> Any:
 
 def _get_pce_client() -> Any:
     return current_app.config.get("PCE_CLIENT")
+
+
+def _get_label_resolver() -> LabelResolver:
+    """Get or lazily initialize the label resolver with PCE labels."""
+    resolver = current_app.config.get("LABEL_RESOLVER")
+    if resolver is None:
+        resolver = LabelResolver()
+        current_app.config["LABEL_RESOLVER"] = resolver
+    # Refresh if empty (first call or after PCE reconnect)
+    if not resolver.label_keys:
+        pce = _get_pce_client()
+        if pce:
+            labels = pce.get_labels()
+            resolver.load(labels)
+            logger.info("Loaded %d labels (%d keys)", len(labels), len(resolver.label_keys))
+    return resolver
 
 
 def _persist_config() -> None:
@@ -358,6 +375,114 @@ def api_create_watcher() -> Any:
     _persist_config()
     logger.info("Watcher created via API: %s -> %s", pattern, action.plugin)
     return jsonify({"ok": True, "pattern": pattern, "plugin": action.plugin})
+
+
+@bp.route("/traffic")
+@_auth_required
+def traffic_page() -> str:
+    """Traffic flow explorer with label-based querying."""
+    resolver = _get_label_resolver()
+    return render_template(
+        "traffic.html",
+        label_keys=resolver.label_keys,
+        labels_json=json.dumps(resolver.all_labels()),
+        config=_get_config(),
+    )
+
+
+@bp.route("/api/traffic/labels")
+@_auth_required
+def api_traffic_labels() -> Any:
+    """Return all labels grouped by key for the traffic query builder."""
+    resolver = _get_label_resolver()
+    grouped: dict[str, list[str]] = {}
+    for label in resolver.all_labels():
+        grouped.setdefault(label["key"], []).append(label["value"])
+    return jsonify(grouped)
+
+
+@bp.route("/api/traffic/query", methods=["POST"])
+@_auth_required
+def api_traffic_query() -> Any:
+    """Create an async traffic query from human-readable label expressions."""
+    pce = _get_pce_client()
+    if not pce:
+        return jsonify({"error": "PCE client not available"}), 503
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No JSON body"}), 400
+
+    resolver = _get_label_resolver()
+
+    # Parse time range
+    now = datetime.now(timezone.utc)
+    since = _parse_time(data.get("since", "24h"), now) or (now - timedelta(days=1))
+    until = _parse_time(data.get("until"), now) or now
+
+    # Parse label expressions into PCE format
+    src_include = resolver.parse_expression(data.get("src_include", ""))
+    src_exclude = resolver.parse_exclude(data.get("src_exclude", ""))
+    dst_include = resolver.parse_expression(data.get("dst_include", ""))
+    dst_exclude = resolver.parse_exclude(data.get("dst_exclude", ""))
+    svc_include = resolver.parse_services(data.get("services_include", ""))
+    svc_exclude = resolver.parse_services(data.get("services_exclude", ""))
+
+    policy_decisions = data.get("policy_decisions", ["allowed", "blocked", "potentially_blocked"])
+    max_results = int(data.get("max_results", 500))
+    query_name = data.get("query_name", f"pce_events_{now.strftime('%H%M%S')}")
+
+    query = {
+        "query_name": query_name,
+        "start_date": since.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "end_date": until.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "policy_decisions": policy_decisions,
+        "max_results": max_results,
+        "sources": {"include": src_include or [], "exclude": src_exclude},
+        "destinations": {"include": dst_include or [], "exclude": dst_exclude},
+        "sources_destinations_query_op": data.get("query_op", "and"),
+        "services": {"include": svc_include, "exclude": svc_exclude},
+    }
+
+    result = pce.create_traffic_query(query)
+    if not result:
+        return jsonify({"error": "Failed to create traffic query"}), 500
+
+    return jsonify({"ok": True, "query": query, "result": result})
+
+
+@bp.route("/api/traffic/queries")
+@_auth_required
+def api_traffic_queries() -> Any:
+    """List all async traffic queries and their status."""
+    pce = _get_pce_client()
+    if not pce:
+        return jsonify({"error": "PCE client not available"}), 503
+    return jsonify(pce.list_traffic_queries())
+
+
+@bp.route("/api/traffic/download")
+@_auth_required
+def api_traffic_download() -> Any:
+    """Download traffic query results and return as parsed JSON rows."""
+    import csv
+    import io
+
+    pce = _get_pce_client()
+    if not pce:
+        return jsonify({"error": "PCE client not available"}), 503
+
+    href = request.args.get("href", "")
+    if not href:
+        return jsonify({"error": "href parameter required"}), 400
+
+    csv_text = pce.download_traffic_results(href)
+    if csv_text is None:
+        return jsonify({"error": "Failed to download results"}), 500
+
+    reader = csv.DictReader(io.StringIO(csv_text))
+    rows = list(reader)
+    return jsonify({"flows": rows, "total": len(rows)})
 
 
 @bp.route("/api/render", methods=["POST"])
