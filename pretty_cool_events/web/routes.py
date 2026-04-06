@@ -567,6 +567,33 @@ def api_traffic_watcher_delete(index: int) -> Any:
     return jsonify({"error": "Index out of range"}), 404
 
 
+@bp.route("/api/traffic/watchers/<int:index>", methods=["PUT"])
+@_auth_required
+def api_traffic_watcher_update(index: int) -> Any:
+    """Update a traffic watcher by index."""
+    config = _get_config()
+    if not (0 <= index < len(config.traffic_watchers)):
+        return jsonify({"error": "Index out of range"}), 404
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No JSON body"}), 400
+
+    tw = config.traffic_watchers[index]
+    for field in ("name", "src_include", "src_exclude", "dst_include", "dst_exclude",
+                  "services_include", "services_exclude", "plugin", "template", "interval"):
+        if field in data:
+            setattr(tw, field, data[field])
+    if "policy_decisions" in data:
+        tw.policy_decisions = data["policy_decisions"]
+    if "max_results" in data:
+        tw.max_results = int(data["max_results"])
+
+    _persist_config()
+    logger.info("Traffic watcher updated: %s", tw.name)
+    return jsonify({"ok": True, "name": tw.name})
+
+
 @bp.route("/api/render", methods=["POST"])
 @_auth_required
 def api_render_template() -> Any:

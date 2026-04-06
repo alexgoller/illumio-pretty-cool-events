@@ -282,7 +282,7 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-primary" onclick="submitTrafficWatcher()">
+        <button type="button" class="btn btn-primary" id="tw-submit-btn" onclick="submitTrafficWatcher()">
           <i class="bi bi-check-circle"></i> Create Traffic Watcher
         </button>
       </div>
@@ -310,6 +310,7 @@ let filteredFlows = [];
 let flowSortKey = 'Reported Policy Decision';
 let flowSortAsc = true;
 let currentFlowIdx = -1;
+let editingWatcherIndex = -1; // -1 = creating new, >= 0 = editing existing
 
 // Build datalist for autocomplete
 const dl = document.getElementById('label-suggestions');
@@ -544,9 +545,11 @@ function showFlow(idx) {
 
 // ---- Traffic watcher builder ----
 function openTrafficWatcherBuilderBlank() {
+  editingWatcherIndex = -1;
   document.getElementById('tw-preview').innerHTML =
     '<span class="text-muted">Define a new traffic watcher from scratch. Use label expressions like <code>env=prod, bu=banking</code>.</span>';
   document.getElementById('tw-name').value = '';
+  document.getElementById('tw-name').readOnly = false;
   document.getElementById('tw-src-include').value = '';
   document.getElementById('tw-src-exclude').value = '';
   document.getElementById('tw-dst-include').value = '';
@@ -555,6 +558,8 @@ function openTrafficWatcherBuilderBlank() {
   document.getElementById('tw-pd-blocked').checked = true;
   document.getElementById('tw-pd-pot').checked = true;
   document.getElementById('tw-pd-allowed').checked = false;
+  document.querySelector('#twModal .modal-title').innerHTML = '<i class="bi bi-eye"></i> Create Traffic Watcher';
+  document.getElementById('tw-submit-btn').innerHTML = '<i class="bi bi-check-circle"></i> Create Traffic Watcher';
   updateTwYaml();
   document.querySelectorAll('#twModal input, #twModal select').forEach(el => {
     el.oninput = updateTwYaml;
@@ -563,7 +568,60 @@ function openTrafficWatcherBuilderBlank() {
   new bootstrap.Modal(document.getElementById('twModal')).show();
 }
 
+function editTrafficWatcher(index) {
+  // Fetch current watcher data and populate the builder
+  fetch('{{ url_for("main.api_traffic_watchers_list") }}')
+  .then(r => r.json())
+  .then(watchers => {
+    if (index >= watchers.length) return;
+    const tw = watchers[index];
+    editingWatcherIndex = index;
+
+    document.getElementById('tw-preview').innerHTML =
+      `<span class="text-muted">Editing traffic watcher <strong>${tw.name}</strong></span>`;
+    document.getElementById('tw-name').value = tw.name;
+    document.getElementById('tw-name').readOnly = true;
+    document.getElementById('tw-src-include').value = tw.src_include || '';
+    document.getElementById('tw-src-exclude').value = tw.src_exclude || '';
+    document.getElementById('tw-dst-include').value = tw.dst_include || '';
+    document.getElementById('tw-dst-exclude').value = tw.dst_exclude || '';
+    document.getElementById('tw-svc-include').value = tw.services_include || '';
+    document.getElementById('tw-pd-blocked').checked = tw.policy_decisions.includes('blocked');
+    document.getElementById('tw-pd-pot').checked = tw.policy_decisions.includes('potentially_blocked');
+    document.getElementById('tw-pd-allowed').checked = tw.policy_decisions.includes('allowed');
+
+    // Set plugin dropdown
+    const pluginSel = document.getElementById('tw-plugin');
+    for (const opt of pluginSel.options) {
+      if (opt.value === tw.plugin) { opt.selected = true; break; }
+    }
+
+    // Set template dropdown
+    const tmplSel = document.getElementById('tw-template');
+    for (const opt of tmplSel.options) {
+      if (opt.value === tw.template) { opt.selected = true; break; }
+    }
+
+    // Set interval dropdown
+    const intSel = document.getElementById('tw-interval');
+    for (const opt of intSel.options) {
+      if (opt.value === tw.interval) { opt.selected = true; break; }
+    }
+
+    document.querySelector('#twModal .modal-title').innerHTML = '<i class="bi bi-pencil"></i> Edit Traffic Watcher';
+    document.getElementById('tw-submit-btn').innerHTML = '<i class="bi bi-save"></i> Save Changes';
+
+    updateTwYaml();
+    document.querySelectorAll('#twModal input, #twModal select').forEach(el => {
+      el.oninput = updateTwYaml;
+      el.onchange = updateTwYaml;
+    });
+    new bootstrap.Modal(document.getElementById('twModal')).show();
+  });
+}
+
 function openTrafficWatcherBuilder(idx) {
+  editingWatcherIndex = -1;
   const detailModal = bootstrap.Modal.getInstance(document.getElementById('flowModal'));
   if (detailModal) detailModal.hide();
 
@@ -594,6 +652,9 @@ function openTrafficWatcherBuilder(idx) {
     `:${port}/${proto} = ${decisionBadge(decision)}`;
 
   // Pre-fill fields
+  document.getElementById('tw-name').readOnly = false;
+  document.querySelector('#twModal .modal-title').innerHTML = '<i class="bi bi-eye"></i> Create Traffic Watcher';
+  document.getElementById('tw-submit-btn').innerHTML = '<i class="bi bi-check-circle"></i> Create Traffic Watcher';
   document.getElementById('tw-name').value =
     (decision.toLowerCase().replace(' ', '-') + '-' + (dstApp || 'traffic') + '-' + port).replace(/\s+/g, '-');
   document.getElementById('tw-src-include').value = srcParts.join(', ');
@@ -658,8 +719,14 @@ function submitTrafficWatcher() {
     max_results: 500,
   };
 
-  fetch('{{ url_for("main.api_traffic_watcher_create") }}', {
-    method: 'POST',
+  const isEdit = editingWatcherIndex >= 0;
+  const url = isEdit
+    ? '{{ url_for("main.api_traffic_watcher_delete", index=0) }}'.replace('/0', '/' + editingWatcherIndex)
+    : '{{ url_for("main.api_traffic_watcher_create") }}';
+  const method = isEdit ? 'PUT' : 'POST';
+
+  fetch(url, {
+    method: method,
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(payload),
   })
@@ -667,8 +734,10 @@ function submitTrafficWatcher() {
   .then(data => {
     if (data.ok) {
       bootstrap.Modal.getInstance(document.getElementById('twModal')).hide();
-      showToast('Traffic Watcher Created', `<strong>${data.name}</strong> &rarr; ${data.plugin}`);
+      const action = isEdit ? 'Updated' : 'Created';
+      showToast(`Traffic Watcher ${action}`, `<strong>${data.name}</strong>`);
       loadTrafficWatchers();
+      editingWatcherIndex = -1;
     } else {
       showToast('Error', data.error || 'Failed', true);
     }
@@ -707,7 +776,10 @@ function loadTrafficWatchers() {
       <td class="small"><code>${tw.services_include || 'any'}</code></td>
       <td class="small">${tw.policy_decisions.map(d => d === 'allowed' ? '<span class="badge bg-success">A</span>' : d === 'blocked' ? '<span class="badge bg-danger">B</span>' : '<span class="badge bg-warning text-dark">PB</span>').join(' ')}</td>
       <td>${tw.plugin}</td>
-      <td><button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="deleteTrafficWatcher(${i})"><i class="bi bi-trash"></i></button></td>
+      <td class="text-nowrap">
+        <button class="btn btn-sm btn-outline-primary py-0 px-1" onclick="editTrafficWatcher(${i})" title="Edit"><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="deleteTrafficWatcher(${i})" title="Delete"><i class="bi bi-trash"></i></button>
+      </td>
     </tr>`).join('');
   });
 }
