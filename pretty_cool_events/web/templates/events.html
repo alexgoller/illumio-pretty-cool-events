@@ -381,9 +381,11 @@ function sevBadge(s) {
     : '<span class="badge bg-info text-dark">info</span>';
 }
 
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
 function creatorText(cb) {
   if (!cb) return '?';
-  if (cb.user) return '<i class="bi bi-person"></i> ' + (cb.user.username || '?');
+  if (cb.user) return '<i class="bi bi-person"></i> ' + esc(cb.user.username || '?');
   if (cb.system !== undefined) return '<i class="bi bi-gear"></i> system';
   if (cb.agent) return '<i class="bi bi-cpu"></i> agent';
   if (cb.container_cluster) return '<i class="bi bi-box"></i> container';
@@ -404,7 +406,7 @@ function renderTable() {
     const ts = e.timestamp ? new Date(e.timestamp).toLocaleString() : '?';
     return `<tr>
       <td class="text-nowrap small" style="cursor:pointer" onclick="showEvent(${i})">${ts}</td>
-      <td style="cursor:pointer" onclick="showEvent(${i})"><code>${e.event_type}</code></td>
+      <td style="cursor:pointer" onclick="showEvent(${i})"><code>${esc(e.event_type)}</code></td>
       <td>${statusBadge(e.status)}</td>
       <td>${sevBadge(e.severity)}</td>
       <td class="small">${creatorText(e.created_by)}</td>
@@ -509,7 +511,10 @@ function renderPreview() {
       const renderHtml = document.getElementById('preview-html-toggle').checked;
       const isHtml = template.endsWith('.html') || template.endsWith('.tmpl');
       if (renderHtml && isHtml) {
-        output.innerHTML = `<div class="p-0"><iframe id="preview-iframe" style="width:100%;border:none;min-height:400px;" srcdoc="${data.rendered.replace(/"/g, '&quot;')}"></iframe></div>`;
+        output.innerHTML = `<div class="p-0"><iframe id="preview-iframe" sandbox="allow-same-origin" style="width:100%;border:none;min-height:400px;" srcdoc="${data.rendered.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}"></iframe></div>`;
+        // Re-inject the HTML into srcdoc safely after DOM creation
+        const iframe = document.getElementById('preview-iframe');
+        iframe.srcdoc = data.rendered;
         // Auto-resize iframe to content
         const iframe = document.getElementById('preview-iframe');
         iframe.onload = () => {

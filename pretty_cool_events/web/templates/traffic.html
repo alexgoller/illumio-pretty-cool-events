@@ -325,6 +325,8 @@ allLabels.forEach(l => {
   }
 });
 
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
 function decisionBadge(d) {
   if (d === 'Allowed') return '<span class="badge bg-success">Allowed</span>';
   if (d === 'Blocked') return '<span class="badge bg-danger">Blocked</span>';
@@ -484,12 +486,12 @@ function renderFlows() {
 
     return `<tr>
       <td class="small">
-        <strong>${srcHost}</strong>
-        ${srcLabel ? '<br><span class="text-muted">' + srcLabel + '</span>' : ''}
+        <strong>${esc(srcHost)}</strong>
+        ${srcLabel ? '<br><span class="text-muted">' + esc(srcLabel) + '</span>' : ''}
       </td>
       <td class="small">
-        <strong>${dstHost}</strong>
-        ${dstLabel ? '<br><span class="text-muted">' + dstLabel + '</span>' : ''}
+        <strong>${esc(dstHost)}</strong>
+        ${dstLabel ? '<br><span class="text-muted">' + esc(dstLabel) + '</span>' : ''}
       </td>
       <td><code>${f['Port']}</code></td>
       <td>${f['Protocol']}</td>

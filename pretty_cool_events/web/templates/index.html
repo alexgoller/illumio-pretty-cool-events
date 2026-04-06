@@ -188,9 +188,11 @@ function sevBadge(s) {
     : '<span class="badge bg-info text-dark">info</span>';
 }
 
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
 function creatorText(cb) {
   if (!cb) return '?';
-  if (cb.user) return cb.user.username || '?';
+  if (cb.user) return esc(cb.user.username || '?');
   if (cb.system !== undefined) return 'system';
   if (cb.agent) return 'agent';
   if (cb.container_cluster) return 'container';
@@ -259,7 +261,7 @@ function addLiveEvent(ev) {
   tr.className = 'fade-in';
   tr.innerHTML = `
     <td class="small text-nowrap">${ts}</td>
-    <td><code>${ev.event_type}</code></td>
+    <td><code>${esc(ev.event_type)}</code></td>
     <td>${statusBadge(ev.status)}</td>
     <td>${sevBadge(ev.severity)}</td>
     <td class="small">${creatorText(ev.created_by)}</td>`;

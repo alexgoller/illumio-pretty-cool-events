@@ -33,6 +33,16 @@ def create_app(
         static_folder=static_dir,
     )
     app.secret_key = os.environ.get("FLASK_SECRET_KEY") or os.urandom(24)
+    app.config["SESSION_COOKIE_HTTPONLY"] = True
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+
+    @app.after_request
+    def _set_security_headers(response: Any) -> Any:
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        return response
 
     def split_filter(value: str, delimiter: str | None = None) -> list[str]:
         return value.split(delimiter)

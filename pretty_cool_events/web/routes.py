@@ -8,6 +8,7 @@ import json
 import logging
 import queue
 import re
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -78,6 +79,18 @@ def _list_output_templates() -> list[str]:
     return sorted(f.name for f in template_dir.iterdir() if not f.name.startswith("_"))
 
 
+def _validate_template_name(name: str) -> str | None:
+    """Validate a template name is safe (no path traversal). Returns cleaned name or None."""
+    if not name:
+        return None
+    # Strip path components - only allow bare filenames
+    clean = name.replace("\\", "/").split("/")[-1]
+    if ".." in clean or clean.startswith("_"):
+        return None
+    allowed = _list_output_templates()
+    return clean if clean in allowed else None
+
+
 def _persist_config() -> None:
     """Save current config to disk if a config_path is known."""
     config = _get_config()
@@ -104,6 +117,11 @@ def _auth_required(f: Any) -> Any:
     return decorated
 
 
+_login_attempts: dict[str, list[float]] = {}  # IP -> list of attempt timestamps
+_LOGIN_RATE_LIMIT = 5  # max attempts
+_LOGIN_RATE_WINDOW = 300  # per 5 minutes
+
+
 @bp.route("/login", methods=["GET", "POST"])
 def login_page() -> Any:
     config = _get_config()
@@ -111,12 +129,27 @@ def login_page() -> Any:
         return redirect(url_for("main.index"))
 
     if request.method == "POST":
+        # Rate limiting by IP
+        client_ip = request.remote_addr or "unknown"
+        now = time.monotonic()
+        attempts = _login_attempts.setdefault(client_ip, [])
+        attempts[:] = [t for t in attempts if t > now - _LOGIN_RATE_WINDOW]
+        if len(attempts) >= _LOGIN_RATE_LIMIT:
+            flash("Too many login attempts. Try again later.", "danger")
+            return render_template("login.html"), 429
+
         username = request.form.get("username", "")
         password = request.form.get("password", "")
         if username == config.httpd.username and password == config.httpd.password:
+            session.clear()  # Prevent session fixation
             session["authenticated"] = True
+            # Validate redirect target (prevent open redirect)
             next_url = request.args.get("next", "/")
+            if not next_url.startswith("/") or next_url.startswith("//"):
+                next_url = "/"
             return redirect(next_url)
+
+        attempts.append(now)
         flash("Invalid username or password", "danger")
 
     return render_template("login.html")
@@ -601,9 +634,13 @@ def api_render_template() -> Any:
         return jsonify({"error": "No JSON body"}), 400
 
     event_data = data.get("event")
-    template_name = data.get("template", "default.html")
+    raw_template = data.get("template", "default.html")
     if not event_data:
         return jsonify({"error": "event is required"}), 400
+
+    template_name = _validate_template_name(raw_template)
+    if not template_name:
+        return jsonify({"error": f"Invalid template: {raw_template}"}), 400
 
     config = _get_config()
     template_globals = {"pce_fqdn": config.pce.pce, "pce_org": config.pce.pce_org}
@@ -623,8 +660,9 @@ def api_render_template() -> Any:
         context["event"] = event_data
         rendered = tmpl.render(**context)
         return jsonify({"rendered": rendered, "template": template_name})
-    except Exception as e:
-        return jsonify({"error": str(e), "template": template_name}), 400
+    except Exception:
+        logger.exception("Template render failed: %s", template_name)
+        return jsonify({"error": "Template render failed", "template": template_name}), 400
 
 
 @bp.route("/api/templates")

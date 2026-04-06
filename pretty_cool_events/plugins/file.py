@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from pretty_cool_events.plugins.base import OutputPlugin
 
 logger = logging.getLogger(__name__)
+
+_BLOCKED_PATHS = ("/etc", "/var", "/usr", "/bin", "/sbin", "/root", "/home")
 
 
 class FilePlugin(OutputPlugin):
@@ -16,7 +19,14 @@ class FilePlugin(OutputPlugin):
     name = "PCEFile"
 
     def configure(self, config: dict[str, Any]) -> None:
-        self.logfile = config.get("logfile", "pce_events.log")
+        logfile = config.get("logfile", "pce_events.log")
+        # Security: reject absolute paths outside working dir and path traversal
+        resolved = str(Path(logfile).resolve())
+        if ".." in logfile or any(resolved.startswith(p) for p in _BLOCKED_PATHS):
+            logger.error("FilePlugin: rejected unsafe logfile path: %s", logfile)
+            self.logfile = "pce_events.log"
+        else:
+            self.logfile = logfile
         self.template = config.get("template", "default.html")
         self._configured = True
 
