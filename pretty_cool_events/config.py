@@ -24,7 +24,6 @@ class PCEConfig(BaseModel):
     pce_api_secret: str
     pce_org: int = 1
     pce_poll_interval: int = 10
-    pce_traffic_interval: int = 120
     verify_tls: bool = True
 
 
@@ -164,7 +163,6 @@ class AppConfig(BaseModel):
     httpd: HttpdConfig = Field(default_factory=HttpdConfig)
     default_template: str = "default.html"
     throttle_default: str = ""
-    traffic_worker: bool = False
     plugin_config: dict[str, dict[str, Any]] = Field(default_factory=dict)
     watchers: dict[str, list[WatcherAction]] = Field(default_factory=dict)
     traffic_watchers: list[TrafficWatcher] = Field(default_factory=list)
@@ -226,7 +224,7 @@ def _normalize_raw_config(raw: dict[str, Any]) -> dict[str, Any]:
     watchers_section = raw.get("watchers", {})
 
     pce_keys = ["pce", "pce_api_user", "pce_api_secret", "pce_org",
-                "pce_poll_interval", "pce_traffic_interval", "verify_tls"]
+                "pce_poll_interval", "verify_tls"]
 
     pce_config = {}
     for key in pce_keys:
@@ -252,7 +250,6 @@ def _normalize_raw_config(raw: dict[str, Any]) -> dict[str, Any]:
         "httpd": httpd_config,
         "default_template": config_section.get("default_template", "default.html"),
         "throttle_default": config_section.get("throttle_default", ""),
-        "traffic_worker": config_section.get("traffic_worker", False),
         "plugin_config": plugin_config,
         "watchers": watchers_section,
         "traffic_watchers": traffic_watchers_section or [],
@@ -297,7 +294,6 @@ def save_config(config: AppConfig, path: Path | str, backup: bool = True) -> Non
         "pce_api_secret": config.pce.pce_api_secret,
         "pce_org": config.pce.pce_org,
         "pce_poll_interval": config.pce.pce_poll_interval,
-        "pce_traffic_interval": config.pce.pce_traffic_interval,
         "httpd": config.httpd.enabled,
         "httpd_listener_address": config.httpd.address,
         "httpd_listener_port": config.httpd.port,
@@ -305,7 +301,6 @@ def save_config(config: AppConfig, path: Path | str, backup: bool = True) -> Non
         "httpd_password": config.httpd.password,
         "default_template": config.default_template,
         "throttle_default": config.throttle_default,
-        "traffic_worker": config.traffic_worker,
         "plugin_config": config.plugin_config,
     }
 

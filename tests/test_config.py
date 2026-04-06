@@ -29,8 +29,8 @@ class TestLoadConfig:
 
     def test_config_defaults(self, sample_config: AppConfig) -> None:
         assert sample_config.httpd.enabled is False
-        assert sample_config.traffic_worker is False
         assert sample_config.default_template == "default.html"
+        assert sample_config.traffic_watchers == []
 
     def test_env_override(self, sample_config_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("PCE_EVENTS_PCE", "override-pce.example.com")

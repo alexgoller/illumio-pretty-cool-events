@@ -246,7 +246,6 @@ def config_page() -> str:
                     setattr(config.pce, key, val)
 
         config.httpd.enabled = "httpd" in request.form
-        config.traffic_worker = "traffic_worker" in request.form
 
         # Throttle
         throttle_val = request.form.get("throttle_default", "")
