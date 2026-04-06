@@ -274,7 +274,10 @@ def config_page() -> str:
             val = request.form.get(key)
             if val is not None:
                 if key == "pce_org" or key == "pce_poll_interval":
-                    setattr(config.pce, key, int(val))
+                    try:
+                        setattr(config.pce, key, int(val))
+                    except ValueError:
+                        flash(f"Invalid value for {key}: {val}", "danger")
                 else:
                     setattr(config.pce, key, val)
 
@@ -293,6 +296,10 @@ def config_page() -> str:
         config.httpd.username = new_user
         if new_pass:  # Only update password if provided (don't blank it on empty form)
             config.httpd.password = new_pass
+
+        # Warn if auth is only partially configured
+        if bool(config.httpd.username) != bool(config.httpd.password):
+            flash("Warning: set both username AND password to enable auth, or leave both empty", "warning")
 
         _persist_config()
         flash("Configuration saved", "success")
@@ -315,7 +322,12 @@ def watchers_page() -> str:
         templates = request.form.getlist("watcher_template[]")
 
         for i, pattern in enumerate(patterns):
-            if not pattern:
+            if not pattern or len(pattern) > 200:
+                continue
+            try:
+                re.compile(pattern)
+            except re.error:
+                flash(f"Invalid regex pattern: {pattern}", "danger")
                 continue
             action = WatcherAction(
                 status=statuses[i] if i < len(statuses) else "success",
@@ -347,7 +359,10 @@ def delete_watcher() -> str:
     index = request.form.get("index")
 
     if pattern in config.watchers and index is not None:
-        idx = int(index)
+        try:
+            idx = int(index)
+        except ValueError:
+            return redirect(url_for("main.watchers_page"))
         if 0 <= idx < len(config.watchers[pattern]):
             config.watchers[pattern].pop(idx)
             if not config.watchers[pattern]:
@@ -371,7 +386,10 @@ def api_events() -> Any:
 
     since_param = request.args.get("since", "24h")
     until_param = request.args.get("until")
-    max_results = int(request.args.get("max_results", "500"))
+    try:
+        max_results = min(int(request.args.get("max_results", "500")), 10000)
+    except ValueError:
+        max_results = 500
 
     now = datetime.now(timezone.utc)
     since = _parse_time(since_param, now)
@@ -409,6 +427,13 @@ def api_create_watcher() -> Any:
     pattern = data.get("pattern", "")
     if not pattern:
         return jsonify({"error": "pattern is required"}), 400
+    if len(pattern) > 200:
+        return jsonify({"error": "pattern too long"}), 400
+    # Validate regex is compilable
+    try:
+        re.compile(pattern)
+    except re.error:
+        return jsonify({"error": "invalid regex pattern"}), 400
 
     extra_data: dict[str, Any] = {}
     if data.get("template"):
@@ -488,7 +513,10 @@ def api_traffic_query() -> Any:
     svc_exclude = resolver.parse_services(data.get("services_exclude", ""))
 
     policy_decisions = data.get("policy_decisions", ["allowed", "blocked", "potentially_blocked"])
-    max_results = int(data.get("max_results", 500))
+    try:
+        max_results = min(int(data.get("max_results", 500)), 10000)
+    except (ValueError, TypeError):
+        max_results = 500
     query_name = data.get("query_name", f"pce_events_{now.strftime('%H%M%S')}")
 
     query = {
@@ -619,7 +647,10 @@ def api_traffic_watcher_update(index: int) -> Any:
     if "policy_decisions" in data:
         tw.policy_decisions = data["policy_decisions"]
     if "max_results" in data:
-        tw.max_results = int(data["max_results"])
+        import contextlib
+
+        with contextlib.suppress(ValueError, TypeError):
+            tw.max_results = min(int(data["max_results"]), 10000)
 
     _persist_config()
     logger.info("Traffic watcher updated: %s", tw.name)

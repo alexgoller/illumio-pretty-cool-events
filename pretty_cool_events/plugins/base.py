@@ -57,12 +57,17 @@ class OutputPlugin(ABC):
         - All template_globals as top-level variables (e.g., {{ pce_fqdn }})
         Event fields take precedence over template_globals on collision.
         """
+        # Security: strip path components to prevent directory traversal
+        safe_name = template_name.replace("\\", "/").split("/")[-1]
+        if ".." in safe_name:
+            raise ValueError(f"Invalid template name: {template_name}")
+
         context: dict[str, Any] = {}
         if template_globals:
             context.update(template_globals)
         context.update(event)  # Event fields override globals
         context["event"] = event  # Also available as nested object
-        template = self._env.get_template(template_name)
+        template = self._env.get_template(safe_name)
         return template.render(**context)
 
     @abstractmethod

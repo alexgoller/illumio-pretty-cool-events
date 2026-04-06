@@ -50,8 +50,8 @@
               <div class="input-group input-group-sm">
                 <input type="password" class="form-control form-control-sm"
                        name="plugin[{{ name }}][{{ field_name }}]"
-                       value="{{ cfg.get(field_name, '') or '' }}"
-                       placeholder="{{ field_meta.placeholder }}"
+                       value=""
+                       placeholder="{{ '(set - leave blank to keep)' if cfg.get(field_name) else field_meta.placeholder }}"
                        id="field-{{ name }}-{{ field_name }}">
                 <button class="btn btn-outline-secondary" type="button"
                         onclick="togglePasswordVisibility('field-{{ name }}-{{ field_name }}')">

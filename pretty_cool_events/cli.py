@@ -171,7 +171,7 @@ def _mask_secrets(data: Any, _secret_keys: set[str] | None = None) -> None:
     if isinstance(data, dict):
         for key in data:
             if key in _secret_keys and isinstance(data[key], str) and data[key]:
-                data[key] = data[key][:4] + "****"
+                data[key] = "********"
             else:
                 _mask_secrets(data[key], _secret_keys)
     elif isinstance(data, list):
