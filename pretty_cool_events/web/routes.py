@@ -206,6 +206,7 @@ def plugins_page() -> str:
 def diagram_page() -> str:
     """Visual watcher flow diagram."""
     config = _get_config()
+    stats = _get_stats().snapshot()
     meta_map = {k: {"display_name": v.display_name, "icon": v.icon}
                 for k, v in PLUGIN_METADATA.items()}
     return render_template(
@@ -219,6 +220,7 @@ def diagram_page() -> str:
             default=str,
         ),
         plugin_meta_json=json.dumps(meta_map),
+        stats_json=json.dumps(stats, default=str),
         config=config,
     )
 

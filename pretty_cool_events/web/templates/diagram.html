@@ -5,6 +5,9 @@
 {% block content %}
 <h2 class="mb-4"><i class="bi bi-diagram-3"></i> Watcher Flow Diagram</h2>
 
+<!-- Stats summary -->
+<div class="row mb-4" id="diagram-stats"></div>
+
 <div class="card">
   <div class="card-body p-0">
     <div style="overflow-x:auto;">
@@ -45,6 +48,32 @@ const watchers = {{ watchers_json | safe }};
 const trafficWatchers = {{ traffic_watchers_json | safe }};
 const pluginMeta = {{ plugin_meta_json | safe }};
 const pceFqdn = {{ config.pce.pce | tojson }};
+const stats = {{ stats_json | safe }};
+
+// Render stats summary cards
+const ds = document.getElementById('diagram-stats');
+const pceStatus = stats.pce_status === 'connected'
+  ? '<span class="badge bg-success">Connected</span>'
+  : stats.pce_status === 'error'
+  ? '<span class="badge bg-danger">Error</span>'
+  : '<span class="badge bg-secondary">Unknown</span>';
+ds.innerHTML = `
+  <div class="col-md-3"><div class="card text-center"><div class="card-body py-2">
+    <div class="fs-4 fw-bold text-primary">${stats.events_received}</div>
+    <small class="text-muted">Events Received</small>
+  </div></div></div>
+  <div class="col-md-3"><div class="card text-center"><div class="card-body py-2">
+    <div class="fs-4 fw-bold text-success">${stats.events_matched}</div>
+    <small class="text-muted">Events Matched</small>
+  </div></div></div>
+  <div class="col-md-3"><div class="card text-center"><div class="card-body py-2">
+    <div class="fs-4 fw-bold text-info">${stats.events_dispatched}</div>
+    <small class="text-muted">Dispatched to Plugins</small>
+  </div></div></div>
+  <div class="col-md-3"><div class="card text-center"><div class="card-body py-2">
+    <div class="fs-4 fw-bold">${pceStatus}</div>
+    <small class="text-muted">PCE Status</small>
+  </div></div></div>`;
 
 // --- Layout computation ---
 // Columns: PCE -> Patterns -> Filters -> Plugins
@@ -85,7 +114,7 @@ let currentRow = 0;
 // PCE node (centered vertically)
 const pceY = ROW_START + (totalRows - 1) * ROW_GAP / 2;
 const pceNode = { x: COL_PCE - NODE_W/2, y: pceY - NODE_H/2, w: NODE_W, h: NODE_H,
-  label: 'Illumio PCE', sublabel: pceFqdn, color: '#1a1a2e', textColor: '#fff' };
+  label: 'Illumio PCE', sublabel: stats.events_received + ' events', color: '#1a1a2e', textColor: '#fff' };
 elements.push(pceNode);
 
 // Pattern and filter nodes
@@ -95,9 +124,24 @@ const filterNodes = [];
 patterns.forEach(pattern => {
   const info = patternRows[pattern];
   const midY = ROW_START + (info.start + (info.count - 1) / 2) * ROW_GAP;
+  // Count matching events for this pattern from event_stats
+  let patternEventCount = 0;
+  if (stats.event_stats) {
+    const isExact = !pattern.includes('*') && !pattern.includes('?') && !pattern.includes('[');
+    if (isExact) {
+      patternEventCount = stats.event_stats[pattern] || 0;
+    } else {
+      try {
+        const re = new RegExp('^' + pattern + '$');
+        for (const [et, count] of Object.entries(stats.event_stats)) {
+          if (re.test(et)) patternEventCount += count;
+        }
+      } catch(e) {}
+    }
+  }
   const pNode = {
     x: COL_PATTERN - NODE_W/2, y: midY - NODE_H/2, w: NODE_W, h: NODE_H,
-    label: pattern, sublabel: info.count + ' action' + (info.count > 1 ? 's' : ''),
+    label: pattern, sublabel: patternEventCount + ' events, ' + info.count + ' action' + (info.count > 1 ? 's' : ''),
     color: '#0d6efd', textColor: '#fff'
   };
   elements.push(pNode);
@@ -153,11 +197,11 @@ plugins.forEach(pName => {
   const positions = pluginRowPositions[pName] || [pceY];
   const avgY = positions.reduce((a, b) => a + b, 0) / positions.length;
   const meta = pluginMeta[pName] || { display_name: pName, icon: 'bi-plug' };
-  const template = filterNodes.find(fn => fn.action.plugin === pName)?.action.extra_data?.template || '';
+  const pluginCount = (stats.plugin_stats || {})[pName] || 0;
 
   const plugNode = {
     x: COL_PLUGIN - NODE_W/2, y: avgY - NODE_H/2, w: NODE_W, h: NODE_H,
-    label: meta.display_name, sublabel: template ? template : pName,
+    label: meta.display_name, sublabel: pluginCount + ' dispatched',
     color: '#198754', textColor: '#fff'
   };
   elements.push(plugNode);
