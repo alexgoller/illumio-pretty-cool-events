@@ -93,6 +93,52 @@
   </div>
 </div>
 
+<!-- Traffic watchers -->
+{% if stats.traffic_watcher_runs or config.traffic_watchers %}
+<div class="row">
+  <div class="col-12">
+    <div class="card mb-4">
+      <div class="card-header"><i class="bi bi-arrow-left-right"></i> Traffic Watchers</div>
+      <div class="card-body">
+        {% if config.traffic_watchers %}
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Watcher</th><th>Query</th><th>Interval</th><th>Runs</th><th>Flows Found</th><th>Last Run</th><th>Plugin</th></tr></thead>
+          <tbody>
+            {% for tw in config.traffic_watchers %}
+            {% set runs = stats.traffic_watcher_runs.get(tw.name, 0) %}
+            {% set flows = stats.traffic_watcher_flows.get(tw.name, 0) %}
+            {% set last = stats.traffic_watcher_last_run.get(tw.name, '') %}
+            <tr>
+              <td><strong>{{ tw.name }}</strong></td>
+              <td class="small">
+                {% if tw.src_include %}<code>src={{ tw.src_include }}</code>{% endif %}
+                {% if tw.dst_include %}<code>dst={{ tw.dst_include }}</code>{% endif %}
+                {% if tw.services_include %}<code>svc={{ tw.services_include }}</code>{% endif %}
+              </td>
+              <td>{{ tw.interval }}</td>
+              <td><span class="badge bg-primary">{{ runs }}</span></td>
+              <td>
+                {% if flows > 0 %}
+                <span class="badge bg-warning text-dark">{{ flows }}</span>
+                {% else %}
+                <span class="badge bg-success">0</span>
+                {% endif %}
+              </td>
+              <td class="small">{{ last[:19] if last else 'pending' }}</td>
+              <td>{{ tw.plugin }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="text-muted mb-0">No traffic watchers configured. <a href="{{ url_for('main.traffic_page') }}">Create one</a>.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <!-- Live event feed -->
 <div class="row">
   <div class="col-12">

@@ -23,11 +23,21 @@ class StatsTracker:
         self._timeline_max = timeline_max
         self._sse_subscribers: list[queue.Queue[str]] = []
         self._sse_lock = threading.Lock()
+        # Traffic watcher stats
+        self._traffic_watcher_runs: dict[str, int] = {}  # name -> run count
+        self._traffic_watcher_flows: dict[str, int] = {}  # name -> total flows found
+        self._traffic_watcher_last_run: dict[str, str] = {}  # name -> ISO timestamp
         # PCE connection status
         self._pce_status: str = "unknown"  # "connected", "error", "unknown"
         self._pce_last_error: str = ""
         self._pce_last_success: str = ""
         self._pce_consecutive_failures: int = 0
+
+    def record_traffic_watcher(self, name: str, flows: int) -> None:
+        with self._lock:
+            self._traffic_watcher_runs[name] = self._traffic_watcher_runs.get(name, 0) + 1
+            self._traffic_watcher_flows[name] = self._traffic_watcher_flows.get(name, 0) + flows
+            self._traffic_watcher_last_run[name] = datetime.now(timezone.utc).isoformat()
 
     def record_pce_success(self) -> None:
         with self._lock:
@@ -127,6 +137,9 @@ class StatsTracker:
                 "plugin_stats": dict(self._plugin_stats),
                 "event_stats": dict(self._event_stats),
                 "event_timeline": list(self._event_timeline),
+                "traffic_watcher_runs": dict(self._traffic_watcher_runs),
+                "traffic_watcher_flows": dict(self._traffic_watcher_flows),
+                "traffic_watcher_last_run": dict(self._traffic_watcher_last_run),
                 "pce_status": self._pce_status,
                 "pce_last_error": self._pce_last_error,
                 "pce_last_success": self._pce_last_success,

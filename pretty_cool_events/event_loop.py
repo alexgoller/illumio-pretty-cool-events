@@ -160,38 +160,165 @@ class EventLoop:
         return not self._stop_event.is_set()
 
 
-class TrafficLoop:
-    """Polls PCE for traffic flow data."""
+class TrafficWatcherLoop:
+    """Executes configured traffic watchers on their individual schedules."""
 
-    def __init__(self, pce_client: PCEClient, config: AppConfig) -> None:
+    def __init__(
+        self,
+        pce_client: PCEClient,
+        config: AppConfig,
+        stats: StatsTracker,
+        plugins: dict[str, OutputPlugin],
+    ) -> None:
         self._pce = pce_client
         self._config = config
+        self._stats = stats
+        self._plugins = plugins
         self._stop_event = threading.Event()
+        # Track last run time per watcher name
+        self._last_run: dict[str, datetime] = {}
+        self._template_globals = {
+            "pce_fqdn": config.pce.pce,
+            "pce_org": config.pce.pce_org,
+        }
 
     def run(self) -> None:
-        interval = self._config.pce.pce_traffic_interval
-        logger.info("Traffic loop started (interval: %ds)", interval)
+        """Check all traffic watchers every 60s and run any that are due."""
+        logger.info("Traffic watcher loop started (%d watchers configured)",
+                     len(self._config.traffic_watchers))
 
         while not self._stop_event.is_set():
-            try:
-                now = datetime.now(timezone.utc)
-                query: dict[str, Any] = {
-                    "start_date": (now - __import__("datetime").timedelta(days=1)).strftime(
-                        "%Y-%m-%d %H:%M:%S"
-                    ),
-                    "end_date": now.strftime("%Y-%m-%d %H:%M:%S"),
-                    "policy_decisions": ["allowed", "blocked"],
-                    "max_results": 10000,
-                }
-                result = self._pce.get_traffic(query)
-                if result:
-                    logger.debug("Traffic query returned data")
-            except Exception:
-                logger.exception("Error in traffic polling cycle")
+            for tw in self._config.traffic_watchers:
+                if self._stop_event.is_set():
+                    break
+                try:
+                    if self._is_due(tw):
+                        self._execute_watcher(tw)
+                except Exception:
+                    logger.exception("Traffic watcher '%s' failed", tw.name)
 
-            self._stop_event.wait(timeout=interval)
+            # Check every 60 seconds for due watchers
+            self._stop_event.wait(timeout=60)
 
-        logger.info("Traffic loop stopped")
+        logger.info("Traffic watcher loop stopped")
+
+    def _parse_interval(self, interval: str) -> float:
+        """Parse interval string like '1h', '6h', '24h' to seconds."""
+        import re as _re
+        m = _re.match(r"^(\d+)([mhdw])$", interval.strip())
+        if not m:
+            return 86400  # default 24h
+        amount = int(m.group(1))
+        unit = m.group(2)
+        multipliers = {"m": 60, "h": 3600, "d": 86400, "w": 604800}
+        return amount * multipliers[unit]
+
+    def _is_due(self, tw: Any) -> bool:
+        """Check if a traffic watcher is due to run."""
+        interval_secs = self._parse_interval(tw.interval)
+        last = self._last_run.get(tw.name)
+        if last is None:
+            return True  # Never run, run now
+        elapsed = (datetime.now(timezone.utc) - last).total_seconds()
+        return elapsed >= interval_secs
+
+    def _execute_watcher(self, tw: Any) -> None:
+        """Execute a single traffic watcher: query PCE, check results, notify."""
+        from pretty_cool_events.label_resolver import LabelResolver
+
+        now = datetime.now(timezone.utc)
+        interval_secs = self._parse_interval(tw.interval)
+        since = self._last_run.get(tw.name, now - __import__("datetime").timedelta(seconds=interval_secs))
+
+        logger.info("Running traffic watcher: %s (since %s)", tw.name, since.isoformat())
+
+        # Build the label resolver (reuse labels from PCE)
+        resolver = LabelResolver()
+        labels = self._pce.get_labels()
+        resolver.load(labels)
+
+        # Build the PCE query from the watcher config
+        src_include = resolver.parse_expression(tw.src_include)
+        src_exclude = resolver.parse_exclude(tw.src_exclude)
+        dst_include = resolver.parse_expression(tw.dst_include)
+        dst_exclude = resolver.parse_exclude(tw.dst_exclude)
+        svc_include = resolver.parse_services(tw.services_include)
+        svc_exclude = resolver.parse_services(tw.services_exclude)
+
+        query = {
+            "query_name": f"tw_{tw.name}_{now.strftime('%H%M%S')}",
+            "start_date": since.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "end_date": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "policy_decisions": tw.policy_decisions,
+            "max_results": tw.max_results,
+            "sources": {"include": src_include or [], "exclude": src_exclude},
+            "destinations": {"include": dst_include or [], "exclude": dst_exclude},
+            "sources_destinations_query_op": "and",
+            "services": {"include": svc_include, "exclude": svc_exclude},
+        }
+
+        # Submit async query
+        result = self._pce.create_traffic_query(query)
+        if not result:
+            logger.error("Traffic watcher '%s': failed to create query", tw.name)
+            return
+
+        # Poll for completion (max 2 minutes)
+        import csv
+        import io
+        import time
+
+        for _attempt in range(24):
+            if self._stop_event.is_set():
+                return
+            time.sleep(5)
+            queries = self._pce.list_traffic_queries()
+            # Find our query (most recent with our name prefix)
+            our = [q for q in queries if q.get("query_parameters", {}).get("query_name", "").startswith(f"tw_{tw.name}_")]
+            if not our:
+                continue
+            latest = our[-1]
+            if latest["status"] == "completed" and latest.get("result"):
+                # Download and process results
+                csv_text = self._pce.download_traffic_results(latest["result"])
+                if csv_text:
+                    rows = list(csv.DictReader(io.StringIO(csv_text)))
+                    self._stats.record_traffic_watcher(tw.name, len(rows))
+                    logger.info("Traffic watcher '%s': %d flows found", tw.name, len(rows))
+
+                    if rows:
+                        # Send notification via the configured plugin
+                        plugin = self._plugins.get(tw.plugin)
+                        if plugin:
+                            # Build a summary event for the plugin
+                            summary = {
+                                "event_type": f"traffic_watcher.{tw.name}",
+                                "status": "alert",
+                                "severity": "warning",
+                                "timestamp": now.isoformat(),
+                                "pce_fqdn": self._config.pce.pce,
+                                "traffic_watcher": tw.name,
+                                "flows_count": len(rows),
+                                "policy_decisions": tw.policy_decisions,
+                                "src_include": tw.src_include,
+                                "dst_include": tw.dst_include,
+                                "services_include": tw.services_include,
+                                "sample_flows": rows[:5],
+                            }
+                            try:
+                                plugin.send(summary, {"template": tw.template}, self._template_globals)
+                                logger.info("Traffic watcher '%s': notified %s (%d flows)",
+                                           tw.name, tw.plugin, len(rows))
+                            except Exception:
+                                logger.exception("Traffic watcher '%s': plugin %s failed",
+                                                tw.name, tw.plugin)
+                break
+            elif latest["status"] == "failed":
+                logger.error("Traffic watcher '%s': query failed on PCE", tw.name)
+                break
+
+        # Mark as run regardless of outcome
+        self._last_run[tw.name] = now
 
     def stop(self) -> None:
         self._stop_event.set()

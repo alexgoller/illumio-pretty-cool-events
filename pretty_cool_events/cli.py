@@ -51,7 +51,7 @@ def run(config_path: str, log_level: str) -> None:
         console.print(f"[red]Config error:[/red] {e}")
         raise SystemExit(1) from e
 
-    from pretty_cool_events.event_loop import EventLoop, TrafficLoop
+    from pretty_cool_events.event_loop import EventLoop, TrafficWatcherLoop
     from pretty_cool_events.pce_client import PCEClient
     from pretty_cool_events.plugins.base import create_plugins
     from pretty_cool_events.stats import StatsTracker
@@ -82,15 +82,15 @@ def run(config_path: str, log_level: str) -> None:
     event_thread.start()
     logger.info("Event loop started")
 
-    # Start traffic loop if configured
-    if app_config.traffic_worker:
-        traffic_loop = TrafficLoop(pce_client, app_config)
+    # Start traffic watcher loop if watchers are configured
+    if app_config.traffic_watchers:
+        traffic_loop = TrafficWatcherLoop(pce_client, app_config, stats, plugins)
         loops_to_stop.append(traffic_loop)
         traffic_thread = threading.Thread(
-            target=traffic_loop.run, name="traffic-loop", daemon=True
+            target=traffic_loop.run, name="traffic-watchers", daemon=True
         )
         traffic_thread.start()
-        logger.info("Traffic loop started")
+        logger.info("Traffic watcher loop started (%d watchers)", len(app_config.traffic_watchers))
 
     # Start web UI if configured
     if app_config.httpd.enabled:
