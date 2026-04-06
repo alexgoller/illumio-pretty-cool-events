@@ -47,14 +47,16 @@ class EventLoop:
     def run(self) -> None:
         """Run the event polling loop until stop() is called."""
         poll_interval = self._config.pce.pce_poll_interval
-        current_date = datetime.now(timezone.utc).astimezone()
+        # Watermark: only advance on successful poll to avoid missing events
+        self._watermark = datetime.now(timezone.utc).astimezone()
 
         logger.info("Event loop started (poll interval: %ds)", poll_interval)
 
         while not self._stop_event.is_set():
             try:
-                self._poll_events(current_date)
+                self._poll_events()
             except Exception as e:
+                # On error, do NOT advance the watermark - re-fetch on next poll
                 error_msg = str(e)
                 self._stats.record_pce_error(error_msg)
                 self._stats.publish_event({
@@ -65,15 +67,37 @@ class EventLoop:
                 })
                 logger.exception("Error in event polling cycle")
 
-            current_date = datetime.now(timezone.utc).astimezone()
             self._stop_event.wait(timeout=poll_interval)
 
         logger.info("Event loop stopped")
 
-    def _poll_events(self, since: datetime) -> None:
-        """Fetch and process events since the given timestamp."""
-        events = self._pce.get_events(since)
+    def _poll_events(self) -> None:
+        """Fetch and process events since the watermark."""
+        # Capture the poll start time BEFORE the request
+        poll_time = datetime.now(timezone.utc).astimezone()
+
+        events = self._pce.get_events(since=self._watermark)
         self._stats.record_pce_success()
+
+        # Advance watermark to the latest event timestamp (or poll time if no events)
+        # This prevents gaps: if events arrived during our request, we'll catch them
+        # next poll because the watermark is the newest event's timestamp, not "now".
+        if events:
+            latest_ts = max(
+                (e.get("timestamp", "") for e in events if e.get("timestamp")),
+                default="",
+            )
+            if latest_ts:
+                try:
+                    self._watermark = datetime.fromisoformat(
+                        latest_ts.replace("Z", "+00:00")
+                    )
+                except ValueError:
+                    self._watermark = poll_time
+            else:
+                self._watermark = poll_time
+        else:
+            self._watermark = poll_time
 
         for event in events:
             if "event_type" not in event:

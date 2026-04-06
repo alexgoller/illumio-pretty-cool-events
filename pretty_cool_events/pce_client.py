@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from datetime import datetime, timezone
 from typing import Any
 
@@ -42,6 +43,8 @@ class PCEClient:
             transport=transport,
             headers={"User-Agent": "pretty-cool-events/1.0"},
         )
+        # Serialize all PCE requests to prevent overloading the PCE
+        self._lock = threading.Lock()
 
     def close(self) -> None:
         self._client.close()
@@ -54,12 +57,13 @@ class PCEClient:
 
     def health_check(self, timeout: float = 10.0) -> bool:
         """Check PCE connectivity with a short timeout."""
-        try:
-            r = self._client.get("/api/v2/health", timeout=timeout)
-            return r.status_code == 200
-        except httpx.HTTPError as e:
-            logger.error("PCE health check failed: %s", e)
-            return False
+        with self._lock:
+            try:
+                r = self._client.get("/api/v2/health", timeout=timeout)
+                return r.status_code == 200
+            except httpx.HTTPError as e:
+                logger.error("PCE health check failed: %s", e)
+                return False
 
     def get_events(
         self,
@@ -82,23 +86,23 @@ class PCEClient:
         if max_results:
             params["max_results"] = max_results
 
-        try:
-            r = self._client.get(
-                f"/api/v2/orgs/{self._org_id}/events",
-                params=params,
-            )
-            r.raise_for_status()
-            return r.json()
-        except httpx.HTTPStatusError as e:
-            logger.error("Failed to fetch events (HTTP %d): %s", e.response.status_code, e)
-            return []
-        except (httpx.ConnectError, httpx.ConnectTimeout, httpx.ReadTimeout) as e:
-            # Connection-level failures bubble up so the event loop can track them
-            logger.error("PCE connection failed: %s", e)
-            raise
-        except httpx.HTTPError as e:
-            logger.error("Failed to fetch events: %s", e)
-            raise
+        with self._lock:
+            try:
+                r = self._client.get(
+                    f"/api/v2/orgs/{self._org_id}/events",
+                    params=params,
+                )
+                r.raise_for_status()
+                return r.json()
+            except httpx.HTTPStatusError as e:
+                logger.error("Failed to fetch events (HTTP %d): %s", e.response.status_code, e)
+                return []
+            except (httpx.ConnectError, httpx.ConnectTimeout, httpx.ReadTimeout) as e:
+                logger.error("PCE connection failed: %s", e)
+                raise
+            except httpx.HTTPError as e:
+                logger.error("Failed to fetch events: %s", e)
+                raise
 
     # ------------------------------------------------------------------
     # Traffic flow async queries
@@ -106,60 +110,64 @@ class PCEClient:
 
     def get_labels(self) -> list[dict[str, Any]]:
         """Fetch all labels from the PCE."""
-        try:
-            r = self._client.get(f"/api/v2/orgs/{self._org_id}/labels")
-            r.raise_for_status()
-            return r.json()
-        except httpx.HTTPError as e:
-            logger.error("Failed to fetch labels: %s", e)
-            return []
+        with self._lock:
+            try:
+                r = self._client.get(f"/api/v2/orgs/{self._org_id}/labels")
+                r.raise_for_status()
+                return r.json()
+            except httpx.HTTPError as e:
+                logger.error("Failed to fetch labels: %s", e)
+                return []
 
     def create_traffic_query(self, query: dict[str, Any]) -> dict[str, Any] | None:
         """Submit an async traffic flow query. Returns the query object with href."""
-        try:
-            r = self._client.post(
-                f"/api/v2/orgs/{self._org_id}/traffic_flows/async_queries",
-                json=query,
-            )
-            if r.status_code == 202:
-                # 202 Accepted - get query href from listing
-                return {"status": "queued", "accepted": True}
-            r.raise_for_status()
-            return r.json()
-        except httpx.HTTPError as e:
-            logger.error("Traffic query creation failed: %s", e)
-            return None
+        with self._lock:
+            try:
+                r = self._client.post(
+                    f"/api/v2/orgs/{self._org_id}/traffic_flows/async_queries",
+                    json=query,
+                )
+                if r.status_code == 202:
+                    return {"status": "queued", "accepted": True}
+                r.raise_for_status()
+                return r.json()
+            except httpx.HTTPError as e:
+                logger.error("Traffic query creation failed: %s", e)
+                return None
 
     def list_traffic_queries(self) -> list[dict[str, Any]]:
         """List all async traffic queries."""
-        try:
-            r = self._client.get(
-                f"/api/v2/orgs/{self._org_id}/traffic_flows/async_queries"
-            )
-            r.raise_for_status()
-            return r.json()
-        except httpx.HTTPError as e:
-            logger.error("Failed to list traffic queries: %s", e)
-            return []
+        with self._lock:
+            try:
+                r = self._client.get(
+                    f"/api/v2/orgs/{self._org_id}/traffic_flows/async_queries"
+                )
+                r.raise_for_status()
+                return r.json()
+            except httpx.HTTPError as e:
+                logger.error("Failed to list traffic queries: %s", e)
+                return []
 
     def get_traffic_query(self, href: str) -> dict[str, Any] | None:
         """Get the status of an async traffic query by href."""
-        try:
-            path = href if href.startswith("/api/") else f"/api/v2{href}"
-            r = self._client.get(path)
-            r.raise_for_status()
-            return r.json()
-        except httpx.HTTPError as e:
-            logger.error("Failed to get traffic query: %s", e)
-            return None
+        with self._lock:
+            try:
+                path = href if href.startswith("/api/") else f"/api/v2{href}"
+                r = self._client.get(path)
+                r.raise_for_status()
+                return r.json()
+            except httpx.HTTPError as e:
+                logger.error("Failed to get traffic query: %s", e)
+                return None
 
     def download_traffic_results(self, href: str) -> str | None:
         """Download traffic query results as CSV."""
-        try:
-            path = href if href.startswith("/api/") else f"/api/v2{href}"
-            r = self._client.get(path)
-            r.raise_for_status()
-            return r.text
-        except httpx.HTTPError as e:
-            logger.error("Failed to download traffic results: %s", e)
-            return None
+        with self._lock:
+            try:
+                path = href if href.startswith("/api/") else f"/api/v2{href}"
+                r = self._client.get(path)
+                r.raise_for_status()
+                return r.text
+            except httpx.HTTPError as e:
+                logger.error("Failed to download traffic results: %s", e)
+                return None
