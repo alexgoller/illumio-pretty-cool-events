@@ -98,6 +98,9 @@ class EventLoop:
 
             matches = self._watchers.match(event)
 
+            if matches:
+                self._stats.record_matched_event()
+
             for action, extra_data in matches:
                 plugin = self._plugins.get(action.plugin)
                 if not plugin:
@@ -112,7 +115,7 @@ class EventLoop:
                     continue
 
                 try:
-                    self._stats.record_match(event_type, action.plugin)
+                    self._stats.record_dispatch(event_type, action.plugin)
                     logger.info("Routing %s -> %s", event_type, action.plugin)
                     plugin.send(event, extra_data, self._template_globals)
                 except Exception:

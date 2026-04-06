@@ -16,6 +16,7 @@ class StatsTracker:
         self._lock = threading.Lock()
         self._events_received: int = 0
         self._events_matched: int = 0
+        self._events_dispatched: int = 0
         self._plugin_stats: dict[str, int] = {}
         self._event_stats: dict[str, int] = {}
         self._event_timeline: list[dict[str, str]] = []
@@ -46,9 +47,15 @@ class StatsTracker:
             self._events_received += 1
             self._event_stats[event_type] = self._event_stats.get(event_type, 0) + 1
 
-    def record_match(self, event_type: str, plugin_name: str) -> None:
+    def record_matched_event(self) -> None:
+        """Record that an event had at least one watcher match (call once per event)."""
         with self._lock:
             self._events_matched += 1
+
+    def record_dispatch(self, event_type: str, plugin_name: str) -> None:
+        """Record a plugin dispatch (may be multiple per event if multiple watchers match)."""
+        with self._lock:
+            self._events_dispatched += 1
             self._plugin_stats[plugin_name] = self._plugin_stats.get(plugin_name, 0) + 1
 
     def record_timeline(self, timestamp: str, event_type: str) -> None:
@@ -116,6 +123,7 @@ class StatsTracker:
             return {
                 "events_received": self._events_received,
                 "events_matched": self._events_matched,
+                "events_dispatched": self._events_dispatched,
                 "plugin_stats": dict(self._plugin_stats),
                 "event_stats": dict(self._event_stats),
                 "event_timeline": list(self._event_timeline),
