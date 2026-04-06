@@ -38,10 +38,6 @@
             <input class="form-check-input" type="checkbox" id="httpd" name="httpd" {% if config.httpd.enabled %}checked{% endif %}>
             <label class="form-check-label" for="httpd">Enable Web UI</label>
           </div>
-          <div class="form-check form-switch">
-            <input class="form-check-input" type="checkbox" id="traffic_worker" name="traffic_worker" {% if config.traffic_worker %}checked{% endif %}>
-            <label class="form-check-label" for="traffic_worker">Enable Traffic Worker</label>
-          </div>
         </div>
       </div>
     </div>
@@ -90,12 +86,67 @@
   <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Save Configuration</button>
 </form>
 
+<!-- Traffic Watchers (outside the form - managed via their own API) -->
+<div class="card mb-4 mt-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-arrow-left-right"></i> Traffic Watchers</span>
+    <span class="badge bg-primary">{{ config.traffic_watchers | length }}</span>
+  </div>
+  <div class="card-body">
+    {% if config.traffic_watchers %}
+    <div class="table-responsive">
+      <table class="table table-sm mb-3">
+        <thead><tr><th>Name</th><th>Sources</th><th>Destinations</th><th>Services</th><th>Decisions</th><th>Interval</th><th>Plugin</th></tr></thead>
+        <tbody>
+          {% for tw in config.traffic_watchers %}
+          <tr>
+            <td><strong>{{ tw.name }}</strong></td>
+            <td class="small">
+              {% if tw.src_include %}<code>{{ tw.src_include }}</code>{% else %}<span class="text-muted">any</span>{% endif %}
+              {% if tw.src_exclude %}<br><span class="text-danger small">excl: {{ tw.src_exclude }}</span>{% endif %}
+            </td>
+            <td class="small">
+              {% if tw.dst_include %}<code>{{ tw.dst_include }}</code>{% else %}<span class="text-muted">any</span>{% endif %}
+              {% if tw.dst_exclude %}<br><span class="text-danger small">excl: {{ tw.dst_exclude }}</span>{% endif %}
+            </td>
+            <td class="small"><code>{{ tw.services_include or 'any' }}</code></td>
+            <td class="small">
+              {% for d in tw.policy_decisions %}
+                {% if d == 'allowed' %}<span class="badge bg-success">A</span>
+                {% elif d == 'blocked' %}<span class="badge bg-danger">B</span>
+                {% else %}<span class="badge bg-warning text-dark">PB</span>{% endif %}
+              {% endfor %}
+            </td>
+            <td>{{ tw.interval }}</td>
+            <td>{{ tw.plugin }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-muted mb-2">No traffic watchers configured.</p>
+    {% endif %}
+    <a href="{{ url_for('main.traffic_page') }}" class="btn btn-sm btn-outline-primary">
+      <i class="bi bi-arrow-left-right"></i> Manage Traffic Watchers
+    </a>
+    <div class="form-text mt-2">
+      Traffic watchers run automatically on their configured interval, querying the PCE for
+      matching traffic flows and notifying via the assigned plugin. Create and edit them on
+      the <a href="{{ url_for('main.traffic_page') }}">Traffic page</a>.
+    </div>
+  </div>
+</div>
+
 <div class="mt-4">
   <a href="{{ url_for('main.plugins_page') }}" class="btn btn-outline-secondary">
     <i class="bi bi-plug"></i> Configure Plugins
   </a>
   <a href="{{ url_for('main.watchers_page') }}" class="btn btn-outline-secondary">
     <i class="bi bi-eye"></i> Manage Watchers
+  </a>
+  <a href="{{ url_for('main.traffic_page') }}" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left-right"></i> Traffic Watchers
   </a>
 </div>
 {% endblock %}
