@@ -402,7 +402,13 @@ def create_plugin(plugin_name: str, description: str) -> None:
 
     Example: pce-events create-plugin Discord -d "Send notifications to Discord channels"
     """
+    import re as _re
     from pathlib import Path
+
+    # Validate plugin name - alphanumeric only, no path traversal
+    if not _re.match(r"^[A-Za-z][A-Za-z0-9_]*$", plugin_name):
+        console.print("[red]Invalid plugin name.[/red] Use only letters, numbers, and underscores.")
+        raise SystemExit(1)
 
     # Normalize names
     class_name = plugin_name[0].upper() + plugin_name[1:]
@@ -412,6 +418,11 @@ def create_plugin(plugin_name: str, description: str) -> None:
 
     plugin_dir = Path(__file__).parent / "plugins"
     plugin_path = plugin_dir / filename
+
+    # Security: verify resolved path is inside plugins directory
+    if not str(plugin_path.resolve()).startswith(str(plugin_dir.resolve())):
+        console.print("[red]Invalid plugin path.[/red]")
+        raise SystemExit(1)
 
     if plugin_path.exists():
         console.print(f"[red]Plugin file already exists:[/red] {plugin_path}")
