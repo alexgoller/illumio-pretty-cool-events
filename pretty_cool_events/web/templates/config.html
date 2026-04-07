@@ -145,6 +145,34 @@
     <i class="bi bi-arrow-left-right"></i> Traffic Watchers
   </a>
 </div>
+
+<!-- Config export/import -->
+<div class="card mt-4">
+  <div class="card-header"><i class="bi bi-arrow-down-up"></i> Config Export / Import</div>
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-md-6">
+        <h6>Export</h6>
+        <p class="small text-muted">Download the complete configuration as YAML.</p>
+        <a href="{{ url_for('main.api_config_export') }}" class="btn btn-sm btn-outline-primary">
+          <i class="bi bi-download"></i> Download config.yaml
+        </a>
+      </div>
+      <div class="col-md-6">
+        <h6>Import</h6>
+        <p class="small text-muted">Upload a YAML config file. Creates a backup of the current config first.</p>
+        <form method="POST" action="{{ url_for('main.api_config_import') }}" enctype="multipart/form-data">
+          <div class="input-group input-group-sm">
+            <input type="file" class="form-control" name="config_file" accept=".yaml,.yml">
+            <button type="submit" class="btn btn-outline-warning" onclick="return confirm('This will replace your current config. Continue?')">
+              <i class="bi bi-upload"></i> Import
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}

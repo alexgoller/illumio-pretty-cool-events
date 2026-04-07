@@ -12,12 +12,15 @@ from typing import Any
 class StatsTracker:
     """Tracks event processing statistics with thread safety and live event streaming."""
 
-    def __init__(self, timeline_max: int = 1000) -> None:
+    def __init__(self, timeline_max: int = 1000, history_max: int = 500) -> None:
         self._lock = threading.Lock()
         self._events_received: int = 0
         self._events_matched: int = 0
         self._events_dispatched: int = 0
         self._plugin_stats: dict[str, int] = {}
+        # Notification history (rolling log of dispatches)
+        self._dispatch_history: list[dict[str, Any]] = []
+        self._history_max = history_max
         self._event_stats: dict[str, int] = {}
         self._event_timeline: list[dict[str, str]] = []
         self._timeline_max = timeline_max
@@ -62,11 +65,21 @@ class StatsTracker:
         with self._lock:
             self._events_matched += 1
 
-    def record_dispatch(self, event_type: str, plugin_name: str) -> None:
-        """Record a plugin dispatch (may be multiple per event if multiple watchers match)."""
+    def record_dispatch(self, event_type: str, plugin_name: str,
+                        success: bool = True, error: str = "") -> None:
+        """Record a plugin dispatch with history."""
         with self._lock:
             self._events_dispatched += 1
             self._plugin_stats[plugin_name] = self._plugin_stats.get(plugin_name, 0) + 1
+            self._dispatch_history.append({
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "event_type": event_type,
+                "plugin": plugin_name,
+                "success": success,
+                "error": error,
+            })
+            if len(self._dispatch_history) > self._history_max:
+                self._dispatch_history = self._dispatch_history[-self._history_max:]
 
     def record_timeline(self, timestamp: str, event_type: str) -> None:
         with self._lock:
@@ -137,6 +150,7 @@ class StatsTracker:
                 "plugin_stats": dict(self._plugin_stats),
                 "event_stats": dict(self._event_stats),
                 "event_timeline": list(self._event_timeline),
+                "dispatch_history": list(self._dispatch_history),
                 "traffic_watcher_runs": dict(self._traffic_watcher_runs),
                 "traffic_watcher_flows": dict(self._traffic_watcher_flows),
                 "traffic_watcher_last_run": dict(self._traffic_watcher_last_run),

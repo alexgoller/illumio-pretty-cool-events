@@ -139,10 +139,12 @@ class EventLoop:
                     continue
 
                 try:
-                    self._stats.record_dispatch(event_type, action.plugin)
                     logger.info("Routing %s -> %s", event_type, action.plugin)
                     plugin.send(event, extra_data, self._template_globals)
-                except Exception:
+                    self._stats.record_dispatch(event_type, action.plugin, success=True)
+                except Exception as exc:
+                    self._stats.record_dispatch(event_type, action.plugin,
+                                                success=False, error=str(exc))
                     logger.exception("Plugin '%s' failed for event %s",
                                      action.plugin, event_type)
 

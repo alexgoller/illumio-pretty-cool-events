@@ -758,6 +758,187 @@ def api_health() -> Any:
     return jsonify({"status": "ok"})
 
 
+# --- Watcher dry-run ---
+
+@bp.route("/api/watchers/test", methods=["POST"])
+@_auth_required
+def api_watcher_test() -> Any:
+    """Test a watcher pattern against recent events (dry-run)."""
+    pce = _get_pce_client()
+    if not pce:
+        return jsonify({"error": "PCE not available"}), 503
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No JSON body"}), 400
+
+    pattern = data.get("pattern", "")
+    status_filter = data.get("status", "*")
+    match_fields = data.get("match_fields", {})
+    max_events = min(int(data.get("max_events", 100)), 500)
+
+    from pretty_cool_events.config import WatcherAction
+    from pretty_cool_events.watcher import WatcherRegistry
+
+    action = WatcherAction(
+        status=status_filter,
+        plugin="PCEStdout",
+        extra_data={"match_fields": match_fields} if match_fields else {},
+    )
+    registry = WatcherRegistry({pattern: [action]})
+
+    # Fetch recent events
+    now = datetime.now(timezone.utc)
+    since = now - timedelta(hours=24)
+    events = pce.get_events(since=since, until=now, max_results=max_events, web=True)
+
+    matches = []
+    for evt in events:
+        results = registry.match(evt)
+        if results:
+            matches.append({
+                "event_type": evt.get("event_type"),
+                "status": evt.get("status"),
+                "severity": evt.get("severity"),
+                "timestamp": evt.get("timestamp"),
+                "created_by": evt.get("created_by"),
+            })
+
+    return jsonify({
+        "pattern": pattern,
+        "status": status_filter,
+        "events_checked": len(events),
+        "matches": matches,
+        "match_count": len(matches),
+    })
+
+
+# --- Config export/import ---
+
+@bp.route("/api/config/export")
+@_auth_required
+def api_config_export() -> Any:
+    """Download the current config as YAML."""
+    config = _get_config()
+
+    import io
+
+    buf = io.StringIO()
+    # Build the YAML manually using save_config's logic
+    import yaml as _yaml
+
+    flat: dict[str, Any] = {
+        "pce": config.pce.pce,
+        "pce_api_user": config.pce.pce_api_user,
+        "pce_api_secret": config.pce.pce_api_secret,
+        "pce_org": config.pce.pce_org,
+        "pce_poll_interval": config.pce.pce_poll_interval,
+        "httpd": config.httpd.enabled,
+        "httpd_listener_address": config.httpd.address,
+        "httpd_listener_port": config.httpd.port,
+        "httpd_username": config.httpd.username,
+        "httpd_password": config.httpd.password,
+        "default_template": config.default_template,
+        "throttle_default": config.throttle_default,
+        "plugin_config": config.plugin_config,
+    }
+    watchers_out = {p: [a.model_dump() for a in actions]
+                    for p, actions in config.watchers.items()}
+    output: dict[str, Any] = {"config": flat, "watchers": watchers_out}
+    if config.traffic_watchers:
+        output["traffic_watchers"] = [tw.model_dump() for tw in config.traffic_watchers]
+
+    _yaml.dump(output, buf, default_flow_style=False, sort_keys=False)
+
+    return Response(
+        buf.getvalue(),
+        mimetype="application/x-yaml",
+        headers={"Content-Disposition": "attachment; filename=config.yaml"},
+    )
+
+
+@bp.route("/api/config/import", methods=["POST"])
+@_auth_required
+def api_config_import() -> Any:
+    """Upload a YAML config file to replace the current config."""
+    import yaml as _yaml
+
+    file = request.files.get("config_file")
+    if not file:
+        flash("No file uploaded", "danger")
+        return redirect(url_for("main.config_page"))
+
+    try:
+        raw = _yaml.safe_load(file.read())
+        if not raw or "config" not in raw:
+            flash("Invalid config file format", "danger")
+            return redirect(url_for("main.config_page"))
+
+        from pretty_cool_events.config import _apply_env_overrides, _normalize_raw_config
+
+        raw = _apply_env_overrides(raw)
+        normalized = _normalize_raw_config(raw)
+
+        config = _get_config()
+        # Update in-memory config
+        from pretty_cool_events.config import AppConfig
+
+        new_config = AppConfig(**normalized)
+        new_config.config_path = config.config_path
+
+        # Replace the app's config
+        current_app.config["APP_CONFIG"] = new_config
+        _persist_config()
+        flash("Configuration imported successfully", "success")
+    except Exception:
+        logger.exception("Config import failed")
+        flash("Import failed: check file format", "danger")
+
+    return redirect(url_for("main.config_page"))
+
+
+# --- Notification history ---
+
+@bp.route("/api/history")
+@_auth_required
+def api_dispatch_history() -> Any:
+    """Return the dispatch notification history."""
+    stats = _get_stats()
+    snap = stats.snapshot()
+    return jsonify(snap.get("dispatch_history", []))
+
+
+# --- Suppression window ---
+
+@bp.route("/api/suppression", methods=["GET", "POST", "DELETE"])
+@_auth_required
+def api_suppression() -> Any:
+    """Manage the notification suppression window."""
+    throttler = current_app.config.get("THROTTLER")
+
+    if request.method == "POST":
+        data = request.get_json() or {}
+        minutes = int(data.get("minutes", 60))
+        reason = data.get("reason", "maintenance")
+        if throttler:
+            throttler.set_suppression(minutes, reason)
+        return jsonify({"ok": True, "minutes": minutes, "reason": reason})
+
+    if request.method == "DELETE":
+        if throttler:
+            throttler.clear_suppression()
+        return jsonify({"ok": True, "cleared": True})
+
+    # GET
+    if throttler:
+        return jsonify({
+            "active": throttler.is_suppressed(),
+            "remaining_min": throttler.suppression_remaining(),
+            "reason": throttler._suppression_reason,
+        })
+    return jsonify({"active": False, "remaining_min": 0, "reason": ""})
+
+
 # ---------------------------------------------------------------------------
 # Filter helpers
 # ---------------------------------------------------------------------------

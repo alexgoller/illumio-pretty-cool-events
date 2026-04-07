@@ -139,6 +139,60 @@
 </div>
 {% endif %}
 
+<!-- Suppression + Notification History + Top Events -->
+<div class="row">
+  <div class="col-md-4 mb-4">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-pause-circle"></i> Suppression Window</span>
+        <span class="badge" id="supp-badge"></span>
+      </div>
+      <div class="card-body">
+        <div id="supp-status" class="mb-2"></div>
+        <div class="input-group input-group-sm">
+          <input type="number" class="form-control" id="supp-minutes" value="60" min="5" placeholder="minutes">
+          <input type="text" class="form-control" id="supp-reason" placeholder="reason" value="maintenance">
+          <button class="btn btn-warning" onclick="startSuppression()">Suppress</button>
+        </div>
+        <button class="btn btn-sm btn-outline-success mt-2 d-none" id="supp-clear-btn" onclick="clearSuppression()">
+          <i class="bi bi-play-circle"></i> Clear Suppression
+        </button>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-8 mb-4">
+    <div class="card h-100">
+      <div class="card-header"><i class="bi bi-bar-chart"></i> Top Event Types</div>
+      <div class="card-body" style="height: 200px;">
+        <canvas id="topEventsChart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-12 mb-4">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-clock-history"></i> Notification History</span>
+        <span class="badge bg-secondary" id="history-count">0</span>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive" style="max-height:250px; overflow-y:auto;">
+          <table class="table table-sm table-hover mb-0">
+            <thead class="sticky-top bg-body-tertiary">
+              <tr><th>Time</th><th>Event</th><th>Plugin</th><th>Status</th></tr>
+            </thead>
+            <tbody id="history-body">
+              <tr><td colspan="4" class="text-center text-muted p-3">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Live event feed -->
 <div class="row">
   <div class="col-12">
@@ -173,6 +227,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script>
 const MAX_FEED_ROWS = 100;
 
@@ -312,5 +367,94 @@ function connectSSE() {
 }
 
 connectSSE();
+
+// --- Suppression window ---
+function loadSuppression() {
+  fetch('{{ url_for("main.api_suppression") }}')
+    .then(r => r.json())
+    .then(data => {
+      const badge = document.getElementById('supp-badge');
+      const status = document.getElementById('supp-status');
+      const clearBtn = document.getElementById('supp-clear-btn');
+      if (data.active) {
+        badge.className = 'badge bg-warning text-dark';
+        badge.textContent = data.remaining_min + 'min left';
+        status.innerHTML = `<span class="text-warning"><i class="bi bi-pause-circle-fill"></i> Suppressed: ${data.reason} (${data.remaining_min}min remaining)</span>`;
+        clearBtn.classList.remove('d-none');
+      } else {
+        badge.className = 'badge bg-success';
+        badge.textContent = 'Active';
+        status.innerHTML = '<span class="text-success"><i class="bi bi-check-circle"></i> Notifications active</span>';
+        clearBtn.classList.add('d-none');
+      }
+    });
+}
+
+function startSuppression() {
+  const minutes = parseInt(document.getElementById('supp-minutes').value) || 60;
+  const reason = document.getElementById('supp-reason').value || 'maintenance';
+  fetch('{{ url_for("main.api_suppression") }}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({minutes, reason}),
+  }).then(() => loadSuppression());
+}
+
+function clearSuppression() {
+  fetch('{{ url_for("main.api_suppression") }}', {method: 'DELETE'})
+    .then(() => loadSuppression());
+}
+
+loadSuppression();
+setInterval(loadSuppression, 30000);
+
+// --- Notification history ---
+function loadHistory() {
+  fetch('{{ url_for("main.api_dispatch_history") }}')
+    .then(r => r.json())
+    .then(history => {
+      const body = document.getElementById('history-body');
+      document.getElementById('history-count').textContent = history.length;
+      if (!history.length) {
+        body.innerHTML = '<tr><td colspan="4" class="text-center text-muted p-3">No notifications yet</td></tr>';
+        return;
+      }
+      body.innerHTML = history.slice().reverse().slice(0, 100).map(h => {
+        const ts = new Date(h.timestamp).toLocaleTimeString();
+        const badge = h.success
+          ? '<span class="badge bg-success">OK</span>'
+          : `<span class="badge bg-danger" title="${esc(h.error || '')}">FAIL</span>`;
+        return `<tr><td class="small">${ts}</td><td><code>${esc(h.event_type)}</code></td><td>${esc(h.plugin)}</td><td>${badge}</td></tr>`;
+      }).join('');
+    });
+}
+
+loadHistory();
+setInterval(loadHistory, 15000);
+
+// --- Top events chart ---
+function renderTopEvents(eventStats) {
+  const canvas = document.getElementById('topEventsChart');
+  if (!canvas || !eventStats) return;
+  const sorted = Object.entries(eventStats).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  if (!sorted.length) return;
+
+  if (window._topChart) window._topChart.destroy();
+  window._topChart = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: sorted.map(e => e[0]),
+      datasets: [{data: sorted.map(e => e[1]), backgroundColor: 'rgba(13,110,253,0.7)'}]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+      plugins: {legend: {display: false}},
+      scales: {x: {beginAtZero: true, ticks: {stepSize: 1}}}
+    }
+  });
+}
+
+// Render initial chart from server data
+renderTopEvents({{ stats.event_stats | tojson }});
 </script>
 {% endblock %}

@@ -59,6 +59,9 @@ class Throttler:
         # key -> list of timestamps (epoch seconds)
         self._history: dict[str, list[float]] = {}
         self._suppressed: dict[str, int] = {}
+        # Suppression window: (end_time_monotonic, reason)
+        self._suppression_until: float = 0
+        self._suppression_reason: str = ""
 
     @property
     def default_spec(self) -> str:
@@ -94,6 +97,10 @@ class Throttler:
         spec = parse_throttle(override_spec) if override_spec else None
         limit = spec or self._default
 
+        # Check suppression window first
+        if self.is_suppressed():
+            return False
+
         if limit is None:
             return True  # No throttle configured
 
@@ -115,6 +122,27 @@ class Throttler:
             history.append(now)
             return True
 
+    def set_suppression(self, duration_minutes: int, reason: str = "maintenance") -> None:
+        """Suppress all notifications for the given duration."""
+        with self._lock:
+            self._suppression_until = time.monotonic() + duration_minutes * 60
+            self._suppression_reason = reason
+
+    def clear_suppression(self) -> None:
+        """Clear the suppression window."""
+        with self._lock:
+            self._suppression_until = 0
+            self._suppression_reason = ""
+
+    def is_suppressed(self) -> bool:
+        """Check if we're in a suppression window."""
+        return time.monotonic() < self._suppression_until
+
+    def suppression_remaining(self) -> int:
+        """Minutes remaining in the suppression window, 0 if not active."""
+        remaining = self._suppression_until - time.monotonic()
+        return max(0, int(remaining / 60))
+
     def suppressed_count(self, event_type: str, plugin: str) -> int:
         """Return how many events have been suppressed for this key."""
         key = f"{event_type}:{plugin}"
@@ -129,6 +157,9 @@ class Throttler:
                 "active_keys": len(self._history),
                 "total_suppressed": sum(self._suppressed.values()),
                 "suppressed_by_key": dict(self._suppressed),
+                "suppression_active": self.is_suppressed(),
+                "suppression_remaining_min": self.suppression_remaining(),
+                "suppression_reason": self._suppression_reason,
             }
 
     def reset(self) -> None:
