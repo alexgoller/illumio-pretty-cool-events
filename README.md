@@ -44,11 +44,20 @@ pce-events config validate --config config.yaml
 pce-events run --config config.yaml
 ```
 
-### Docker
+### Docker (quickstart - no config needed)
 
 ```bash
 docker build -t pretty-cool-events .
-docker run -v $(pwd)/config.yaml:/config/config.yaml pretty-cool-events
+mkdir -p config
+docker run -v $(pwd)/config:/config -p 8443:8443 pretty-cool-events
+```
+
+Open `http://localhost:8443` and configure PCE credentials in the browser. Config is saved to `./config/config.yaml` and persists across restarts.
+
+### Docker (with existing config)
+
+```bash
+docker run -v $(pwd)/config:/config -p 8443:8443 pretty-cool-events
 ```
 
 ## Configuration
@@ -680,15 +689,28 @@ mypy pretty_cool_events/
 # Build
 docker build -t pretty-cool-events .
 
-# Run
-docker run -v $(pwd)/config.yaml:/config/config.yaml pretty-cool-events
+# First run (no config - bootstrap mode)
+mkdir -p config
+docker run -v $(pwd)/config:/config -p 8443:8443 pretty-cool-events
+# -> Web UI starts at http://localhost:8443, configure via browser
+# -> Config saved to ./config/config.yaml, persists across restarts
+
+# Run with existing config
+docker run -v $(pwd)/config:/config -p 8443:8443 pretty-cool-events
+
+# With environment variable overrides for PCE credentials
+docker run -v $(pwd)/config:/config -p 8443:8443 \
+  -e PCE_EVENTS_PCE=pce.example.com:8443 \
+  -e PCE_EVENTS_PCE_API_USER=api_xxx \
+  -e PCE_EVENTS_PCE_API_SECRET=secret \
+  pretty-cool-events
 
 # Override log level
-docker run -v $(pwd)/config.yaml:/config/config.yaml pretty-cool-events \
+docker run -v $(pwd)/config:/config -p 8443:8443 pretty-cool-events \
   pce-events run --config /config/config.yaml --log-level DEBUG
 ```
 
-The Dockerfile uses a multi-stage build with Python 3.12.
+Mount the `/config` directory (not just the file) so config backups can be created alongside the config file. The Dockerfile uses a multi-stage build with Python 3.12.
 
 ## CI/CD
 

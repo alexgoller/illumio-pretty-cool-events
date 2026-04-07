@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import signal
 import sys
 import threading
@@ -35,21 +36,45 @@ def cli() -> None:
     """Illumio PCE event monitoring and notification system."""
 
 
+_DEFAULT_CONFIG_PATH = "/config/config.yaml"
+
+
 @cli.command()
-@click.option("--config", "config_path", required=True, type=click.Path(exists=True),
-              help="Path to config YAML file")
+@click.option("--config", "config_path", required=False, type=click.Path(),
+              help="Path to config YAML file (auto-creates bootstrap config if not found)")
 @click.option("--log-level", default="INFO",
               type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"], case_sensitive=False))
-def run(config_path: str, log_level: str) -> None:
-    """Run the event monitoring service."""
+def run(config_path: str | None, log_level: str) -> None:
+    """Run the event monitoring service.
+
+    If --config is not provided, looks for config at /config/config.yaml
+    (Docker default) then ./config.yaml. If no config exists, creates a
+    bootstrap config with the web UI enabled for browser-based setup.
+    """
     _setup_logging(log_level)
     logger = logging.getLogger(__name__)
 
-    try:
-        app_config = load_config(config_path)
-    except Exception as e:
-        console.print(f"[red]Config error:[/red] {e}")
-        raise SystemExit(1) from e
+    from pretty_cool_events.config import create_bootstrap_config
+
+    # Resolve config path with fallback chain
+    if config_path is None:
+        from pathlib import Path
+        candidates = [Path(_DEFAULT_CONFIG_PATH), Path("config.yaml")]
+        config_path = next((str(p) for p in candidates if p.is_file()), None)
+
+    if config_path and os.path.isfile(config_path):
+        try:
+            app_config = load_config(config_path)
+            console.print(f"[green]Loaded config:[/green] {config_path}")
+        except Exception as e:
+            console.print(f"[red]Config error:[/red] {e}")
+            raise SystemExit(1) from e
+    else:
+        # Bootstrap mode: generate minimal config
+        bootstrap_path = config_path or "config.yaml"
+        console.print(f"[yellow]No config found. Creating bootstrap config: {bootstrap_path}[/yellow]")
+        console.print("[yellow]Web UI enabled - configure via browser.[/yellow]")
+        app_config = create_bootstrap_config(bootstrap_path)
 
     from pretty_cool_events.event_loop import EventLoop, TrafficWatcherLoop
     from pretty_cool_events.pce_client import PCEClient
@@ -57,47 +82,53 @@ def run(config_path: str, log_level: str) -> None:
     from pretty_cool_events.stats import StatsTracker
     from pretty_cool_events.watcher import WatcherRegistry
 
-    # Initialize PCE client
-    pce_client = PCEClient(
-        base_url=app_config.pce.pce,
-        api_user=app_config.pce.pce_api_user,
-        api_secret=app_config.pce.pce_api_secret,
-        org_id=app_config.pce.pce_org,
-        verify_tls=app_config.pce.verify_tls,
-    )
-
-    if not pce_client.health_check():
-        console.print("[yellow]Warning:[/yellow] PCE health check failed. Continuing anyway...")
-
-    # Initialize components
     stats = StatsTracker()
-    plugins = create_plugins(app_config)
-    watcher_registry = WatcherRegistry(app_config.watchers)
-    event_loop = EventLoop(pce_client, watcher_registry, stats, plugins, app_config)
+    plugins: dict[str, Any] = {}
+    pce_client: PCEClient | None = None
+    loops_to_stop: list[Any] = []
 
-    loops_to_stop: list[Any] = [event_loop]
+    # Only start PCE polling if credentials are configured
+    has_pce = bool(app_config.pce.pce and app_config.pce.pce_api_user and app_config.pce.pce_api_secret)
 
-    # Start event loop
-    event_thread = threading.Thread(target=event_loop.run, name="event-loop", daemon=True)
-    event_thread.start()
-    logger.info("Event loop started")
-
-    # Start traffic watcher loop if watchers are configured
-    if app_config.traffic_watchers:
-        traffic_loop = TrafficWatcherLoop(pce_client, app_config, stats, plugins)
-        loops_to_stop.append(traffic_loop)
-        traffic_thread = threading.Thread(
-            target=traffic_loop.run, name="traffic-watchers", daemon=True
+    if has_pce:
+        pce_client = PCEClient(
+            base_url=app_config.pce.pce,
+            api_user=app_config.pce.pce_api_user,
+            api_secret=app_config.pce.pce_api_secret,
+            org_id=app_config.pce.pce_org,
+            verify_tls=app_config.pce.verify_tls,
         )
-        traffic_thread.start()
-        logger.info("Traffic watcher loop started (%d watchers)", len(app_config.traffic_watchers))
 
-    # Start web UI if configured
-    if app_config.httpd.enabled:
+        if not pce_client.health_check():
+            console.print("[yellow]Warning:[/yellow] PCE health check failed. Continuing anyway...")
+
+        plugins = create_plugins(app_config)
+        watcher_registry = WatcherRegistry(app_config.watchers)
+        event_loop = EventLoop(pce_client, watcher_registry, stats, plugins, app_config)
+        loops_to_stop.append(event_loop)
+
+        event_thread = threading.Thread(target=event_loop.run, name="event-loop", daemon=True)
+        event_thread.start()
+        logger.info("Event loop started")
+
+        if app_config.traffic_watchers:
+            traffic_loop = TrafficWatcherLoop(pce_client, app_config, stats, plugins)
+            loops_to_stop.append(traffic_loop)
+            traffic_thread = threading.Thread(
+                target=traffic_loop.run, name="traffic-watchers", daemon=True
+            )
+            traffic_thread.start()
+            logger.info("Traffic watcher loop started (%d watchers)", len(app_config.traffic_watchers))
+    else:
+        console.print("[yellow]PCE not configured. Web UI only (configure via browser).[/yellow]")
+
+    # Start web UI if configured (always starts in bootstrap mode)
+    if app_config.httpd.enabled or not has_pce:
         from pretty_cool_events.web.app import create_app
 
+        throttler = loops_to_stop[0].throttler if loops_to_stop and hasattr(loops_to_stop[0], 'throttler') else None
         flask_app = create_app(app_config, stats, plugins, pce_client=pce_client,
-                               throttler=event_loop.throttler)
+                               throttler=throttler)
         web_thread = threading.Thread(
             target=lambda: flask_app.run(
                 host=app_config.httpd.address,
@@ -111,17 +142,30 @@ def run(config_path: str, log_level: str) -> None:
         logger.info("Web UI started on %s:%d", app_config.httpd.address, app_config.httpd.port)
 
     # Graceful shutdown
+    shutdown_event = threading.Event()
+
     def _shutdown(signum: int, frame: Any) -> None:
         console.print("\n[yellow]Shutting down...[/yellow]")
         for loop in loops_to_stop:
             loop.stop()
+        shutdown_event.set()
 
     signal.signal(signal.SIGINT, _shutdown)
     signal.signal(signal.SIGTERM, _shutdown)
 
-    console.print("[green]Service running.[/green] Press Ctrl+C to stop.")
-    event_thread.join()
-    pce_client.close()
+    if has_pce:
+        console.print("[green]Service running.[/green] Press Ctrl+C to stop.")
+    else:
+        console.print(f"[green]Web UI running on http://0.0.0.0:{app_config.httpd.port}[/green]")
+        console.print("[yellow]Configure PCE credentials in the browser to start monitoring.[/yellow]")
+
+    # Block until shutdown
+    if has_pce:
+        event_thread.join()
+        pce_client.close()
+    else:
+        shutdown_event.wait()
+
     console.print("[green]Shutdown complete.[/green]")
 
 

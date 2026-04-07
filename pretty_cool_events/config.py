@@ -256,6 +256,57 @@ def _normalize_raw_config(raw: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def create_bootstrap_config(path: Path | str) -> AppConfig:
+    """Generate a minimal bootstrap config for first-run.
+
+    Creates a config with web UI enabled, PCEStdout plugin, and a catch-all
+    watcher. PCE credentials are blank - user configures via the web UI.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    raw: dict[str, Any] = {
+        "config": {
+            "pce": "",
+            "pce_api_user": "",
+            "pce_api_secret": "",
+            "pce_org": 1,
+            "pce_poll_interval": 10,
+            "httpd": True,
+            "httpd_listener_address": "0.0.0.0",
+            "httpd_listener_port": 8443,
+            "httpd_username": "",
+            "httpd_password": "",
+            "default_template": "default.html",
+            "throttle_default": "",
+            "plugin_config": {
+                "PCEStdout": {"prepend": ""},
+            },
+        },
+        "watchers": {
+            ".*": [
+                {
+                    "status": "*",
+                    "plugin": "PCEStdout",
+                    "extra_data": {"template": "default.html"},
+                }
+            ],
+        },
+    }
+
+    # Apply environment variable overrides (PCE_EVENTS_PCE, etc.)
+    raw = _apply_env_overrides(raw)
+
+    with open(path, "w") as f:
+        yaml.dump(raw, f, default_flow_style=False, sort_keys=False)
+
+    logger.info("Bootstrap config created: %s", path)
+    normalized = _normalize_raw_config(raw)
+    app_config = AppConfig(**normalized)
+    app_config.config_path = str(path.resolve())
+    return app_config
+
+
 def load_config(path: Path | str) -> AppConfig:
     """Load and validate configuration from a YAML file."""
     path = Path(path)

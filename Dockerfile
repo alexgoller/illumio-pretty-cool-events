@@ -17,4 +17,10 @@ COPY pretty_cool_events/ pretty_cool_events/
 
 ENV PYTHONWARNINGS="ignore:Unverified HTTPS request"
 
+# Mount /config as a volume for persistent config + backups
+VOLUME ["/config"]
+
+EXPOSE 8443
+
+# If /config/config.yaml exists, use it. Otherwise bootstrap with web UI.
 ENTRYPOINT ["pce-events", "run", "--config", "/config/config.yaml"]
