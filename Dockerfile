@@ -10,6 +10,13 @@ RUN pip install --no-cache-dir .
 # Runtime stage
 FROM python:3.12-slim
 
+LABEL org.opencontainers.image.title="Pretty Cool Events"
+LABEL org.opencontainers.image.description="Real-time event monitoring and notification system for Illumio PCE. Polls PCE audit events, matches against configurable watchers, and routes to Slack, Email, PagerDuty, Jira, Teams, ServiceNow, SMS, webhooks, and more. Includes web UI for configuration, event browsing, traffic flow analysis, and live dashboards."
+LABEL org.opencontainers.image.url="https://github.com/alexgoller/illumio-pretty-cool-events"
+LABEL org.opencontainers.image.source="https://github.com/alexgoller/illumio-pretty-cool-events"
+LABEL org.opencontainers.image.documentation="https://github.com/alexgoller/illumio-pretty-cool-events#readme"
+LABEL org.opencontainers.image.licenses="MIT"
+
 WORKDIR /app
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin/pce-events /usr/local/bin/pce-events

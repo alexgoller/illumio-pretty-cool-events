@@ -299,11 +299,51 @@
       </div>
     </div>
 
+    <!-- Docker -->
+    <div class="card mb-4">
+      <div class="card-body">
+        <h4>Docker Deployment</h4>
+        <p>The container image is published to GitHub Container Registry.</p>
+
+        <h5 class="mt-3">Zero-config first run</h5>
+        <pre class="bg-body-tertiary p-3 rounded"><code>docker pull ghcr.io/alexgoller/illumio-pretty-cool-events:latest
+mkdir -p config
+docker run -v $(pwd)/config:/config -p 8443:8443 \
+  ghcr.io/alexgoller/illumio-pretty-cool-events:latest</code></pre>
+        <p class="small text-muted">
+          No config file needed. A bootstrap config is generated automatically with the web UI enabled.
+          Open <code>http://localhost:8443</code>, configure PCE credentials on the Configuration page.
+          All changes persist to <code>./config/config.yaml</code> via the volume mount.
+        </p>
+
+        <h5 class="mt-3">With environment variables</h5>
+        <pre class="bg-body-tertiary p-3 rounded"><code>docker run -v $(pwd)/config:/config -p 8443:8443 \
+  -e PCE_EVENTS_PCE=pce.example.com:8443 \
+  -e PCE_EVENTS_PCE_API_USER=api_xxxxxxxxxxxx \
+  -e PCE_EVENTS_PCE_API_SECRET=your-secret \
+  ghcr.io/alexgoller/illumio-pretty-cool-events:latest</code></pre>
+        <p class="small text-muted">
+          PCE credentials from env vars are written into the bootstrap config. Event monitoring starts immediately.
+        </p>
+
+        <h5 class="mt-3">Volume mount</h5>
+        <p class="small">
+          Mount <code>/config</code> as a <strong>directory</strong> (not a single file) so the app can:
+        </p>
+        <ul class="small">
+          <li>Write config changes from the web UI back to <code>config.yaml</code></li>
+          <li>Create timestamped backups in <code>/config/backups/</code></li>
+          <li>Persist across container restarts and upgrades</li>
+        </ul>
+      </div>
+    </div>
+
     <!-- CLI reference -->
     <div class="card mb-4">
       <div class="card-body">
         <h4>CLI Reference</h4>
-        <pre class="bg-body-tertiary p-3 rounded"><code>pce-events run --config config.yaml          # Start the service
+        <pre class="bg-body-tertiary p-3 rounded"><code>pce-events run                                # Start (bootstrap if no config)
+pce-events run --config config.yaml          # Start with specific config
 pce-events config init                        # Create a new config interactively
 pce-events config validate --config config.yaml  # Validate config
 pce-events config show --config config.yaml   # Show config (secrets masked)

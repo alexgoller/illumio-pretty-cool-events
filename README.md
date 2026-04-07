@@ -18,46 +18,55 @@ Illumio PCE  -->  Event Polling  -->  Watcher Matching  -->  Plugin Dispatch  --
 
 ## Quick Start
 
-### Install
+### Docker (recommended - zero config)
 
 ```bash
-pip install -e .
+docker pull ghcr.io/alexgoller/illumio-pretty-cool-events:latest
+mkdir -p config
+docker run -v $(pwd)/config:/config -p 8443:8443 ghcr.io/alexgoller/illumio-pretty-cool-events:latest
 ```
 
-### Create a configuration file
+Open **http://localhost:8443** in your browser. No config file needed - a bootstrap config is generated automatically with the web UI enabled. Configure your PCE credentials on the Configuration page, enable plugins, create watchers - all from the browser. Everything persists to `./config/config.yaml`.
+
+### Docker with pre-configured PCE credentials
 
 ```bash
-pce-events config init --output config.yaml
+mkdir -p config
+docker run -v $(pwd)/config:/config -p 8443:8443 \
+  -e PCE_EVENTS_PCE=pce.example.com:8443 \
+  -e PCE_EVENTS_PCE_API_USER=api_xxxxxxxxxxxx \
+  -e PCE_EVENTS_PCE_API_SECRET=your-secret-here \
+  ghcr.io/alexgoller/illumio-pretty-cool-events:latest
 ```
 
-This walks you through setting up the PCE connection interactively and creates a starter config with a catch-all watcher.
+Event monitoring starts immediately. Web UI available for further configuration.
 
-### Validate configuration
+### Docker with existing config file
 
 ```bash
-pce-events config validate --config config.yaml
+docker run -v $(pwd)/config:/config -p 8443:8443 ghcr.io/alexgoller/illumio-pretty-cool-events:latest
 ```
 
-### Run
-
-```bash
-pce-events run --config config.yaml
-```
-
-### Docker (quickstart - no config needed)
+### Build from source
 
 ```bash
 docker build -t pretty-cool-events .
-mkdir -p config
 docker run -v $(pwd)/config:/config -p 8443:8443 pretty-cool-events
 ```
 
-Open `http://localhost:8443` and configure PCE credentials in the browser. Config is saved to `./config/config.yaml` and persists across restarts.
-
-### Docker (with existing config)
+### Install locally (pip)
 
 ```bash
-docker run -v $(pwd)/config:/config -p 8443:8443 pretty-cool-events
+pip install -e .
+pce-events config init --output config.yaml    # interactive setup
+pce-events run --config config.yaml
+```
+
+Or just run without a config file - bootstrap mode starts the web UI:
+
+```bash
+pip install -e .
+pce-events run
 ```
 
 ## Configuration
@@ -685,25 +694,50 @@ mypy pretty_cool_events/
 
 ## Docker
 
+The container image is published to GitHub Container Registry on every push to `main`.
+
 ```bash
-# Build
-docker build -t pretty-cool-events .
+# Pull the latest image
+docker pull ghcr.io/alexgoller/illumio-pretty-cool-events:latest
+```
 
-# First run (no config - bootstrap mode)
+### Bootstrap mode (no config needed)
+
+```bash
 mkdir -p config
-docker run -v $(pwd)/config:/config -p 8443:8443 pretty-cool-events
-# -> Web UI starts at http://localhost:8443, configure via browser
-# -> Config saved to ./config/config.yaml, persists across restarts
+docker run -v $(pwd)/config:/config -p 8443:8443 \
+  ghcr.io/alexgoller/illumio-pretty-cool-events:latest
+```
 
-# Run with existing config
-docker run -v $(pwd)/config:/config -p 8443:8443 pretty-cool-events
+On first run with no config file, a bootstrap config is generated automatically:
+- Web UI starts immediately on port 8443
+- PCE fields are blank - configure via the browser
+- All changes save to `/config/config.yaml` inside the container
+- Mount `/config` as a directory (not a file) so backups work too
+- Config persists across container restarts via the volume
 
-# With environment variable overrides for PCE credentials
+### With environment variables
+
+```bash
 docker run -v $(pwd)/config:/config -p 8443:8443 \
   -e PCE_EVENTS_PCE=pce.example.com:8443 \
   -e PCE_EVENTS_PCE_API_USER=api_xxx \
   -e PCE_EVENTS_PCE_API_SECRET=secret \
-  pretty-cool-events
+  ghcr.io/alexgoller/illumio-pretty-cool-events:latest
+```
+
+### With existing config
+
+```bash
+docker run -v $(pwd)/config:/config -p 8443:8443 \
+  ghcr.io/alexgoller/illumio-pretty-cool-events:latest
+```
+
+### Build from source
+
+```bash
+docker build -t pretty-cool-events .
+docker run -v $(pwd)/config:/config -p 8443:8443 pretty-cool-events
 
 # Override log level
 docker run -v $(pwd)/config:/config -p 8443:8443 pretty-cool-events \
