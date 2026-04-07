@@ -86,18 +86,19 @@ def get_registry() -> dict[str, type[OutputPlugin]]:
 
 
 def load_all_plugins() -> None:
-    """Import all plugin modules to trigger registration."""
-    import pretty_cool_events.plugins.email  # noqa: F401
-    import pretty_cool_events.plugins.file  # noqa: F401
-    import pretty_cool_events.plugins.jira_plugin  # noqa: F401
-    import pretty_cool_events.plugins.pagerduty  # noqa: F401
-    import pretty_cool_events.plugins.servicenow  # noqa: F401
-    import pretty_cool_events.plugins.slack  # noqa: F401
-    import pretty_cool_events.plugins.sns  # noqa: F401
-    import pretty_cool_events.plugins.stdout  # noqa: F401
-    import pretty_cool_events.plugins.syslog  # noqa: F401
-    import pretty_cool_events.plugins.teams  # noqa: F401
-    import pretty_cool_events.plugins.webhook  # noqa: F401
+    """Auto-discover and import all plugin modules to trigger registration."""
+    import importlib
+    import pkgutil
+
+    import pretty_cool_events.plugins as plugins_pkg
+
+    for _importer, modname, _ispkg in pkgutil.iter_modules(plugins_pkg.__path__):
+        if modname.startswith("_") or modname == "base":
+            continue
+        try:
+            importlib.import_module(f"pretty_cool_events.plugins.{modname}")
+        except Exception:
+            logger.exception("Failed to load plugin module: %s", modname)
 
 
 def create_plugins(config: Any) -> dict[str, OutputPlugin]:

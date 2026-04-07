@@ -389,3 +389,128 @@ def test_plugin(plugin_name: str, config_path: str) -> None:
     except Exception as e:
         console.print(f"[red]Plugin error:[/red] {e}")
         raise SystemExit(1) from e
+
+
+@cli.command("create-plugin")
+@click.argument("plugin_name")
+@click.option("--description", "-d", default="", help="Short description of the plugin")
+def create_plugin(plugin_name: str, description: str) -> None:
+    """Scaffold a new plugin with boilerplate code.
+
+    PLUGIN_NAME should be the class-style name (e.g., Discord, Telegram, Opsgenie).
+    Creates the plugin file, adds metadata, and it's ready to use.
+
+    Example: pce-events create-plugin Discord -d "Send notifications to Discord channels"
+    """
+    from pathlib import Path
+
+    # Normalize names
+    class_name = plugin_name[0].upper() + plugin_name[1:]
+    registry_name = f"PCE{class_name}"
+    module_name = plugin_name.lower()
+    filename = f"{module_name}.py"
+
+    plugin_dir = Path(__file__).parent / "plugins"
+    plugin_path = plugin_dir / filename
+
+    if plugin_path.exists():
+        console.print(f"[red]Plugin file already exists:[/red] {plugin_path}")
+        raise SystemExit(1)
+
+    desc = description or f"{class_name} notification plugin"
+
+    # Generate plugin source
+    source = f'''"""{class_name} output plugin."""
+
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+from pretty_cool_events.plugins.base import OutputPlugin
+
+logger = logging.getLogger(__name__)
+
+
+class {class_name}Plugin(OutputPlugin):
+    """{desc}."""
+
+    name = "{registry_name}"
+
+    def configure(self, config: dict[str, Any]) -> None:
+        # Add your config fields here. They come from plugin_config.{registry_name} in config.yaml.
+        # Example:
+        #   self.url = config.get("url", "")
+        #   self.api_key = config.get("api_key", "")
+        self._configured = True
+
+    def send(
+        self,
+        event: dict[str, Any],
+        extra_data: dict[str, Any],
+        template_globals: dict[str, Any],
+    ) -> None:
+        template_name = extra_data.get("template", "default.html")
+
+        try:
+            rendered = self.render_template(template_name, event, template_globals)
+
+            # TODO: Send the rendered notification to your service.
+            # The 'rendered' string is the event formatted through the Jinja2 template.
+            # The 'event' dict has the raw PCE event data.
+            # The 'extra_data' dict has per-watcher overrides (channel, email_to, etc).
+            #
+            # Example for an HTTP-based service:
+            #   import httpx
+            #   httpx.post(self.url, json={{"text": rendered}})
+
+            logger.info("{class_name}Plugin: %d chars rendered (implement send logic)", len(rendered))
+
+        except Exception as e:
+            logger.error("{class_name}Plugin failed: %s", e)
+'''
+
+    # Generate plugin metadata
+    meta_source = f'''
+    "{registry_name}": PluginMeta(
+        name="{registry_name}",
+        display_name="{class_name}",
+        icon="bi-send",
+        description="{desc}",
+        how_it_works="Configure {class_name} credentials and settings. Events matching "
+                     "your watchers will be rendered through a template and sent to {class_name}.",
+        fields={{
+            # Add your config fields here. These appear in the Plugins UI.
+            # "url": FieldMeta(
+            #     label="URL",
+            #     help="The endpoint to send notifications to.",
+            #     required=True,
+            #     placeholder="https://...",
+            # ),
+            # "api_key": FieldMeta(
+            #     label="API Key",
+            #     required=True,
+            #     secret=True,
+            # ),
+        }},
+    ),
+'''
+
+    # Write plugin file
+    with open(plugin_path, "w") as f:
+        f.write(source)
+
+    console.print(f"[green]Plugin created:[/green] {plugin_path}")
+    console.print(f"  Class: [cyan]{class_name}Plugin[/cyan]")
+    console.print(f"  Registry name: [cyan]{registry_name}[/cyan]")
+    console.print()
+    console.print("[bold]Next steps:[/bold]")
+    console.print(f"  1. Edit [cyan]{plugin_path}[/cyan] - implement the send() method")
+    console.print("  2. Add metadata to [cyan]pretty_cool_events/plugin_meta.py[/cyan]:")
+    console.print("     (paste into PLUGIN_METADATA dict)")
+    console.print()
+    console.print(meta_source)
+    console.print(f"  3. Add [cyan]{registry_name}[/cyan] to your config.yaml under plugin_config")
+    console.print(f"  4. Test: [cyan]pce-events test-plugin {registry_name} --config config.yaml[/cyan]")
+    console.print()
+    console.print("[dim]The plugin is auto-discovered - no imports to add.[/dim]")
