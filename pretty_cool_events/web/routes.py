@@ -253,6 +253,7 @@ def diagram_page() -> str:
             default=str,
         ),
         plugin_meta_json=json.dumps(meta_map),
+        enabled_plugins_json=json.dumps(list(config.plugin_config.keys())),
         stats_json=json.dumps(stats, default=str),
         config=config,
     )

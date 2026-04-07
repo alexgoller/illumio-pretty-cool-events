@@ -495,6 +495,64 @@ PCEFile:
   template: default-json.html
 ```
 
+### PCEOpsgenie - Opsgenie
+
+Creates Opsgenie alerts for on-call notification. Alternative to PagerDuty.
+
+```yaml
+PCEOpsgenie:
+  api_key: your-genie-key
+  team: security-team
+  priority: P3
+  tags: illumio,pce
+  template: default.html
+```
+
+Get an API key from Settings > API key management in Opsgenie. Priority maps to P1 (critical) through P5 (informational).
+
+### PCEGithubIssue - GitHub Issues
+
+Creates GitHub issues from PCE events.
+
+```yaml
+PCEGithubIssue:
+  token: ghp_xxxxxxxxxxxx
+  repo: myorg/security-events
+  labels: pce-event,security
+  template: default.html
+```
+
+Generate a personal access token with `issues:write` scope at github.com/settings/tokens. Each watcher can override the repo via `extra_data.repo`.
+
+### PCELambda - AWS Lambda
+
+Invokes AWS Lambda functions with PCE event data as the JSON payload.
+
+```yaml
+PCELambda:
+  function_name: my-pce-event-handler
+  aws_region: us-east-1
+  access_key: AKIAXXXXXXXX
+  access_key_secret: secret
+  invocation_type: Event
+```
+
+The function receives `{source, event_type, pce_fqdn, event}` as the payload. Invocation type `Event` (default) is async; `RequestResponse` waits for completion. Leave credentials empty to use the default AWS credential chain (IAM role, env vars).
+
+### PCEMattermost - Mattermost
+
+Sends notifications to Mattermost channels via incoming webhook. Slack-compatible.
+
+```yaml
+PCEMattermost:
+  webhook_url: https://mattermost.example.com/hooks/xxx
+  channel: security-alerts
+  username: Pretty Cool Events
+  template: default.html
+```
+
+Create an Incoming Webhook in Mattermost (Integrations > Incoming Webhooks). Each watcher can override the channel via `extra_data.channel`.
+
 ## Templates
 
 Events are formatted through Jinja2 templates before dispatch. Templates have access to all event fields as top-level variables and also as a nested `event` object.

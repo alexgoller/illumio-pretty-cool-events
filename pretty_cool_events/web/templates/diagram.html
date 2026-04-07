@@ -36,6 +36,7 @@
       <div><svg width="18" height="18"><rect width="18" height="18" rx="4" fill="#0d6efd"/></svg> Watcher Pattern</div>
       <div><svg width="18" height="18"><rect width="18" height="18" rx="4" fill="#6c757d"/></svg> Filter (status/severity)</div>
       <div><svg width="18" height="18"><rect width="18" height="18" rx="4" fill="#198754"/></svg> Plugin Output</div>
+      <div><svg width="18" height="18"><rect width="18" height="18" rx="4" fill="#adb5bd"/></svg> Disabled Plugin</div>
       <div><svg width="18" height="18"><rect width="18" height="18" rx="4" fill="#e65100"/></svg> Traffic Watcher</div>
     </div>
   </div>
@@ -47,6 +48,7 @@
 const watchers = {{ watchers_json | safe }};
 const trafficWatchers = {{ traffic_watchers_json | safe }};
 const pluginMeta = {{ plugin_meta_json | safe }};
+const enabledPlugins = new Set({{ enabled_plugins_json | safe }});
 const pceFqdn = {{ config.pce.pce | tojson }};
 const stats = {{ stats_json | safe }};
 
@@ -198,11 +200,14 @@ plugins.forEach(pName => {
   const avgY = positions.reduce((a, b) => a + b, 0) / positions.length;
   const meta = pluginMeta[pName] || { display_name: pName, icon: 'bi-plug' };
   const pluginCount = (stats.plugin_stats || {})[pName] || 0;
+  const isEnabled = enabledPlugins.has(pName);
 
   const plugNode = {
     x: COL_PLUGIN - NODE_W/2, y: avgY - NODE_H/2, w: NODE_W, h: NODE_H,
-    label: meta.display_name, sublabel: pluginCount + ' dispatched',
-    color: '#198754', textColor: '#fff'
+    label: meta.display_name,
+    sublabel: isEnabled ? pluginCount + ' dispatched' : 'DISABLED',
+    color: isEnabled ? '#198754' : '#adb5bd',
+    textColor: '#fff',
   };
   elements.push(plugNode);
   pluginNodes[pName] = plugNode;
@@ -212,10 +217,12 @@ plugins.forEach(pName => {
 filterNodes.forEach(fn => {
   const plugNode = pluginNodes[fn.action.plugin];
   if (plugNode) {
+    const isEnabled = enabledPlugins.has(fn.action.plugin);
     connections.push({
       x1: fn.node.x + fn.node.w, y1: fn.node.y + fn.node.h / 2,
       x2: plugNode.x, y2: plugNode.y + plugNode.h / 2,
-      color: '#198754'
+      color: isEnabled ? '#198754' : '#adb5bd',
+      dashed: !isEnabled,
     });
   }
 });
@@ -248,6 +255,7 @@ connections.forEach(c => {
   path.setAttribute('stroke', c.color);
   path.setAttribute('stroke-width', '2');
   path.setAttribute('marker-end', markerEnd);
+  if (c.dashed) path.setAttribute('stroke-dasharray', '6,4');
   svg.appendChild(path);
 });
 
@@ -394,8 +402,11 @@ if (trafficWatchers.length > 0) {
     Object.entries(tPluginSet).forEach(([pName, info]) => {
       const avgY = info.rows.reduce((s, r) => s + r.y, 0) / info.rows.length;
       const meta = pluginMeta[pName] || {display_name: pName};
-      const pNode = tNode(tSvg, T_COL_PLUGIN-90, avgY-22, 180, 44, meta.display_name, pName, '#198754', '#fff');
-      info.rows.forEach(r => tConn(tSvg, r.node, pNode, '#198754', 'url(#t-arrow-g)'));
+      const isEnabled = enabledPlugins.has(pName);
+      const color = isEnabled ? '#198754' : '#adb5bd';
+      const sub = isEnabled ? pName : 'DISABLED';
+      const pNode = tNode(tSvg, T_COL_PLUGIN-90, avgY-22, 180, 44, meta.display_name, sub, color, '#fff');
+      info.rows.forEach(r => tConn(tSvg, r.node, pNode, color, isEnabled ? 'url(#t-arrow-g)' : 'url(#t-arrow)'));
     });
 
     // Column headers
