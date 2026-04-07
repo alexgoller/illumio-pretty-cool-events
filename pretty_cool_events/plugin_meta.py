@@ -374,6 +374,141 @@ PLUGIN_METADATA: dict[str, PluginMeta] = {
             ),
         },
     ),
+    "PCEOpsgenie": PluginMeta(
+        name="PCEOpsgenie",
+        display_name="Opsgenie",
+        icon="bi-bell-fill",
+        description="Creates Opsgenie alerts for on-call notification. Alternative to "
+                    "PagerDuty, widely used in enterprise incident management.",
+        how_it_works="Uses the Opsgenie REST API v2 to create alerts. Get an API key from "
+                     "Settings > API key management in Opsgenie. Optionally assign alerts to "
+                     "a specific team. Priority maps to Opsgenie P1-P5 levels.",
+        fields={
+            "api_key": FieldMeta(
+                label="API Key",
+                help="Opsgenie API key (from Settings > API key management).",
+                required=True, secret=True,
+            ),
+            "team": FieldMeta(
+                label="Team",
+                help="Opsgenie team name to assign alerts to (optional).",
+                placeholder="security-team",
+            ),
+            "priority": FieldMeta(
+                label="Default Priority",
+                help="Alert priority: P1 (critical) to P5 (informational).",
+                placeholder="P3",
+            ),
+            "tags": FieldMeta(
+                label="Tags",
+                help="Comma-separated tags added to every alert.",
+                placeholder="illumio,pce",
+            ),
+            "template": FieldMeta(label="Default Template", placeholder="default.html"),
+        },
+    ),
+    "PCEGithubIssue": PluginMeta(
+        name="PCEGithubIssue",
+        display_name="GitHub Issues",
+        icon="bi-github",
+        description="Creates GitHub issues from PCE events. Turn security events into "
+                    "trackable issues in your repository.",
+        how_it_works="Uses the GitHub REST API to create issues. Generate a personal access "
+                     "token with 'issues: write' scope at github.com/settings/tokens. "
+                     "Specify the target repo in owner/repo format. Each watcher can "
+                     "override the repo via extra_data.",
+        fields={
+            "token": FieldMeta(
+                label="GitHub Token",
+                help="Personal access token with issues:write scope.",
+                required=True, secret=True,
+            ),
+            "repo": FieldMeta(
+                label="Repository",
+                help="Target repository in owner/repo format.",
+                required=True,
+                placeholder="myorg/security-events",
+            ),
+            "labels": FieldMeta(
+                label="Labels",
+                help="Comma-separated labels to add to created issues.",
+                placeholder="pce-event,security",
+            ),
+            "template": FieldMeta(label="Default Template", placeholder="default.html"),
+        },
+    ),
+    "PCELambda": PluginMeta(
+        name="PCELambda",
+        display_name="AWS Lambda",
+        icon="bi-cloud-arrow-up",
+        description="Invokes AWS Lambda functions with PCE event data. Trigger serverless "
+                    "workflows, custom processing, or cross-cloud integrations.",
+        how_it_works="Uses boto3 to invoke the specified Lambda function. The event data is "
+                     "sent as the function payload as JSON. Invocation type 'Event' (default) "
+                     "is asynchronous; 'RequestResponse' waits for the function to complete. "
+                     "Uses AWS credentials from config or the default credential chain.",
+        fields={
+            "function_name": FieldMeta(
+                label="Function Name",
+                help="Lambda function name or ARN.",
+                required=True,
+                placeholder="my-pce-event-handler",
+            ),
+            "aws_region": FieldMeta(
+                label="AWS Region",
+                placeholder="us-east-1",
+            ),
+            "access_key": FieldMeta(
+                label="AWS Access Key",
+                help="Leave empty to use the default credential chain (IAM role, env vars).",
+                secret=True,
+            ),
+            "access_key_secret": FieldMeta(
+                label="AWS Secret Key",
+                secret=True,
+            ),
+            "invocation_type": FieldMeta(
+                label="Invocation Type",
+                help="'Event' (async) or 'RequestResponse' (sync).",
+                placeholder="Event",
+            ),
+        },
+    ),
+    "PCEMattermost": PluginMeta(
+        name="PCEMattermost",
+        display_name="Mattermost",
+        icon="bi-chat-dots",
+        description="Sends notifications to Mattermost channels via incoming webhook. "
+                    "Self-hosted Slack alternative.",
+        how_it_works="Create an Incoming Webhook in Mattermost (Integrations > Incoming "
+                     "Webhooks). Copy the webhook URL. Events are rendered through a "
+                     "template and posted as messages. Each watcher can override the "
+                     "channel via extra_data.",
+        fields={
+            "webhook_url": FieldMeta(
+                label="Webhook URL",
+                help="Mattermost incoming webhook URL.",
+                required=True, field_type="url",
+                placeholder="https://mattermost.example.com/hooks/xxx",
+            ),
+            "channel": FieldMeta(
+                label="Default Channel",
+                help="Channel to post to (overridable per watcher via extra_data).",
+                placeholder="security-alerts",
+            ),
+            "username": FieldMeta(
+                label="Bot Username",
+                help="Display name for the bot in Mattermost.",
+                placeholder="Pretty Cool Events",
+            ),
+            "icon_url": FieldMeta(
+                label="Bot Icon URL",
+                help="Avatar URL for the bot (optional).",
+                field_type="url",
+            ),
+            "template": FieldMeta(label="Default Template", placeholder="default.html"),
+        },
+    ),
 }
 
 
