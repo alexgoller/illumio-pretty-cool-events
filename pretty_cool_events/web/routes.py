@@ -67,7 +67,7 @@ def _get_label_resolver() -> LabelResolver:
     if not resolver.label_keys:
         pce = _get_pce_client()
         if pce:
-            labels = pce.get_labels()
+            labels = pce.get_labels(web=True)
             resolver.load(labels)
             logger.info("Loaded %d labels (%d keys)", len(labels), len(resolver.label_keys))
     return resolver
@@ -395,7 +395,7 @@ def api_events() -> Any:
     since = _parse_time(since_param, now)
     until = _parse_time(until_param, now) if until_param else now
 
-    events = pce_client.get_events(since=since, until=until, max_results=max_results)
+    events = pce_client.get_events(since=since, until=until, max_results=max_results, web=True)
 
     filtered = _apply_filters(
         events,
@@ -531,7 +531,7 @@ def api_traffic_query() -> Any:
         "services": {"include": svc_include, "exclude": svc_exclude},
     }
 
-    result = pce.create_traffic_query(query)
+    result = pce.create_traffic_query(query, web=True)
     if not result:
         return jsonify({"error": "Failed to create traffic query"}), 500
 
@@ -545,7 +545,7 @@ def api_traffic_queries() -> Any:
     pce = _get_pce_client()
     if not pce:
         return jsonify({"error": "PCE client not available"}), 503
-    return jsonify(pce.list_traffic_queries())
+    return jsonify(pce.list_traffic_queries(web=True))
 
 
 @bp.route("/api/traffic/download")
@@ -563,7 +563,7 @@ def api_traffic_download() -> Any:
     if not href:
         return jsonify({"error": "href parameter required"}), 400
 
-    csv_text = pce.download_traffic_results(href)
+    csv_text = pce.download_traffic_results(href, web=True)
     if csv_text is None:
         return jsonify({"error": "Failed to download results"}), 500
 
