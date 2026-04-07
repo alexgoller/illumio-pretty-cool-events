@@ -4,6 +4,8 @@ Real-time event monitoring and notification system for the Illumio Policy Comput
 
 ## How It Works
 
+![src/static/how-it-works.png]
+
 ```
 Illumio PCE  -->  Event Polling  -->  Watcher Matching  -->  Plugin Dispatch  -->  Notifications
   (API)         (configurable       (exact, regex,         (Slack, Email,       (channels,
