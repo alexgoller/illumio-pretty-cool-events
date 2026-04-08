@@ -1,5 +1,41 @@
-()[https://www.illumio.com/sites/default/files/styles/thumbnail/public/2020-04/Illumio-Logo-Color.png"]
-= Event: {{ event_type }}
-Created by: {% if event.created_by is defined %} {{ event.created_by.user.username }} {% endif %}
-Go to event on PCE
-[https://{{ event.pce_fqdn }}:8443/#{{ event.href | replace("/orgs/1", "")}}]
+{
+  "type": "message",
+  "attachments": [
+    {
+      "contentType": "application/vnd.microsoft.card.adaptive",
+      "content": {
+        "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+        "type": "AdaptiveCard",
+        "version": "1.4",
+        "body": [
+          {
+            "type": "TextBlock",
+            "size": "Medium",
+            "weight": "Bolder",
+            "text": "PCE Event: {{ event_type }}"
+          },
+          {
+            "type": "FactSet",
+            "facts": [
+              {"title": "PCE", "value": "{{ pce_fqdn }}"},
+              {"title": "Time", "value": "{{ timestamp }}"},
+              {"title": "Status", "value": "{{ status | default('null') }}"},
+              {"title": "Severity", "value": "{{ severity | default('info') }}"},
+              {"title": "Created By", "value": "{% if created_by.user is defined %}{{ created_by.user.username }}{% elif created_by.system is defined %}system{% else %}unknown{% endif %}"}
+              {% if action is defined and action is mapping and action.api_endpoint %},
+              {"title": "API", "value": "{{ action.api_method }} {{ action.api_endpoint }}"}
+              {% endif %}
+            ]
+          }
+        ],
+        "actions": [
+          {
+            "type": "Action.OpenUrl",
+            "title": "View on PCE",
+            "url": "https://{{ pce_fqdn }}:8443/#{{ href | replace('/orgs/1', '') }}"
+          }
+        ]
+      }
+    }
+  ]
+}

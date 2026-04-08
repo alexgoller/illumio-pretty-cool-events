@@ -1,0 +1,87 @@
+{% from "_macros.html" import event_badge, event_creator, event_action, event_changes, event_notifications %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Security Alert: {{ event_type }}</title>
+  <style>
+    body { margin:0; padding:0; background:#f4f5f7; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; font-size:14px; color:#212529; }
+    .wrapper { max-width:640px; margin:0 auto; padding:20px; }
+    code { background:#f1f3f5; padding:2px 6px; border-radius:3px; font-size:12px; }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <!-- Alert banner -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px;">
+      <tr>
+        <td style="padding:16px;background:{% if severity == 'err' %}#dc3545{% elif severity == 'warning' %}#ffc107{% else %}#0d6efd{% endif %};color:#fff;border-radius:8px;text-align:center;">
+          <strong style="font-size:18px;">SECURITY ALERT</strong><br>
+          <span style="font-size:14px;">{{ event_type }}</span>
+        </td>
+      </tr>
+    </table>
+
+    <!-- Key facts -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+      <tr>
+        <td style="padding:12px 16px;background:#f8f9fa;border:1px solid #dee2e6;">
+          <table width="100%" cellpadding="4" cellspacing="0">
+            <tr>
+              <td width="30%" style="color:#6c757d;"><strong>PCE</strong></td>
+              <td><code>{{ pce_fqdn }}</code></td>
+            </tr>
+            <tr>
+              <td style="color:#6c757d;"><strong>Time</strong></td>
+              <td>{{ timestamp }}</td>
+            </tr>
+            <tr>
+              <td style="color:#6c757d;"><strong>Status</strong></td>
+              <td>{{ event_badge(status, "status") }}</td>
+            </tr>
+            <tr>
+              <td style="color:#6c757d;"><strong>Severity</strong></td>
+              <td>{{ event_badge(severity, "severity") }}</td>
+            </tr>
+            <tr>
+              <td style="color:#6c757d;"><strong>Actor</strong></td>
+              <td><strong>{{ event_creator(created_by) }}</strong></td>
+            </tr>
+            {% if action is defined and action is mapping and action.src_ip and action.src_ip != 'FILTERED' %}
+            <tr>
+              <td style="color:#6c757d;"><strong>Source IP</strong></td>
+              <td><code>{{ action.src_ip }}</code></td>
+            </tr>
+            {% endif %}
+          </table>
+        </td>
+      </tr>
+    </table>
+
+    {{ event_action(action) }}
+    {{ event_changes(resource_changes) }}
+    {{ event_notifications(notifications) }}
+
+    <!-- Action button -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;">
+      <tr>
+        <td style="text-align:center;padding:12px;">
+          <a href="https://{{ pce_fqdn }}:8443/#{{ href | replace('/orgs/1', '') }}"
+             style="display:inline-block;background:#dc3545;color:#fff;padding:10px 24px;border-radius:6px;text-decoration:none;font-weight:bold;">
+            Investigate on PCE
+          </a>
+        </td>
+      </tr>
+    </table>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px;border-top:1px solid #dee2e6;">
+      <tr>
+        <td style="padding:12px 0;text-align:center;color:#6c757d;font-size:11px;">
+          Pretty Cool Events &middot; {{ pce_fqdn }} &middot; {{ href }}
+        </td>
+      </tr>
+    </table>
+  </div>
+</body>
+</html>

@@ -123,7 +123,7 @@ PLUGIN_METADATA: dict[str, PluginMeta] = {
             ),
             "template": FieldMeta(
                 label="Default Template",
-                placeholder="email.tmpl",
+                placeholder="email-full.html",
             ),
         },
     ),
@@ -185,7 +185,7 @@ PLUGIN_METADATA: dict[str, PluginMeta] = {
             ),
             "template": FieldMeta(
                 label="Default Template",
-                placeholder="syslog.tmpl",
+                placeholder="json-lines.html",
             ),
         },
     ),
@@ -346,7 +346,7 @@ PLUGIN_METADATA: dict[str, PluginMeta] = {
             ),
             "template": FieldMeta(
                 label="Default Template",
-                placeholder="sms.tmpl",
+                placeholder="alert.tmpl",
             ),
         },
     ),
@@ -370,7 +370,7 @@ PLUGIN_METADATA: dict[str, PluginMeta] = {
             "template": FieldMeta(
                 label="Default Template",
                 help="Template for formatting each log line.",
-                placeholder="default-json.html",
+                placeholder="json-lines.html",
             ),
         },
     ),
@@ -404,7 +404,7 @@ PLUGIN_METADATA: dict[str, PluginMeta] = {
                 help="Comma-separated tags added to every alert.",
                 placeholder="illumio,pce",
             ),
-            "template": FieldMeta(label="Default Template", placeholder="default.html"),
+            "template": FieldMeta(label="Default Template", placeholder="alert.tmpl"),
         },
     ),
     "PCEGithubIssue": PluginMeta(
@@ -434,7 +434,7 @@ PLUGIN_METADATA: dict[str, PluginMeta] = {
                 help="Comma-separated labels to add to created issues.",
                 placeholder="pce-event,security",
             ),
-            "template": FieldMeta(label="Default Template", placeholder="default.html"),
+            "template": FieldMeta(label="Default Template", placeholder="github-issue.tmpl"),
         },
     ),
     "PCELambda": PluginMeta(
@@ -506,7 +506,7 @@ PLUGIN_METADATA: dict[str, PluginMeta] = {
                 help="Avatar URL for the bot (optional).",
                 field_type="url",
             ),
-            "template": FieldMeta(label="Default Template", placeholder="default.html"),
+            "template": FieldMeta(label="Default Template", placeholder="chat-markdown.html"),
         },
     ),
 }

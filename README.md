@@ -557,15 +557,20 @@ Create an Incoming Webhook in Mattermost (Integrations > Incoming Webhooks). Eac
 
 Events are formatted through Jinja2 templates before dispatch. Templates have access to all event fields as top-level variables and also as a nested `event` object.
 
-| Template | Format | Best For |
-|----------|--------|----------|
-| `default.html` | Plain text | Console output, general use |
-| `default-slack.html` | Slack Block Kit JSON | Slack messages |
-| `default-json.html` | JSON | File logging, webhooks |
-| `email.tmpl` | HTML | Email notifications |
-| `sms.tmpl` | Short text | SMS, PagerDuty |
-| `default-teams.tmpl` | Markdown | Microsoft Teams |
-| `rule_set.create.jira.tmpl` | Text | Jira tickets for rule set changes |
+| Template | Format | Best For | Plugins |
+|----------|--------|----------|---------|
+| `default.html` | Plain text | Console, general use | PCEStdout |
+| `email-full.html` | Rich HTML | Full-detail email with diffs, JSON | PCEMail |
+| `email-security.html` | Alert HTML | Security alerts with red/amber banner | PCEMail |
+| `default-slack.html` | Slack Block Kit JSON | Slack rich messages | PCESlack |
+| `chat-markdown.html` | Markdown | Chat with event details in quotes | PCEMattermost |
+| `default-teams.tmpl` | Adaptive Card JSON | Teams connector messages | PCETeams |
+| `alert.tmpl` | Concise text | On-call alerts with key facts | PCEPagerDuty, PCEOpsgenie |
+| `sms.tmpl` | Minimal text | SMS notifications | PCESNS |
+| `jira.tmpl` | Jira wiki markup | Issues with tables and change diffs | PCEJira |
+| `github-issue.tmpl` | GitHub Markdown | Issues with tables, links, diffs | PCEGithubIssue |
+| `json-lines.html` | JSON line | Structured log lines | PCEFile, PCESyslog |
+| `webhook-json.html` | Full JSON | Raw event as JSON | PCEWebhook, PCELambda |
 
 ### Template Variables
 

@@ -1,0 +1,31 @@
+## PCE Event: {{ event_type }}
+
+| Field | Value |
+|-------|-------|
+| PCE | `{{ pce_fqdn }}` |
+| Time | {{ timestamp }} |
+| Status | {{ status | default('null') }} |
+| Severity | {{ severity | default('info') }} |
+| Created By | {% if created_by.user is defined %}{{ created_by.user.username }}{% elif created_by.system is defined %}system{% else %}unknown{% endif %} |
+{% if action is defined and action is mapping and action.api_endpoint %}| API | `{{ action.api_method }} {{ action.api_endpoint }}` |
+| HTTP Status | {{ action.http_status_code | default('') }} |
+{% if action.src_ip and action.src_ip != 'FILTERED' %}| Source IP | {{ action.src_ip }} |{% endif %}
+{% endif %}
+
+{% if resource_changes is defined and resource_changes %}
+### Resource Changes
+{% for rc in resource_changes %}
+- **{{ rc.change_type | upper }}**{% if rc.resource is mapping %}{% for rtype, rdata in rc.resource.items() %} `{{ rtype }}`{% if rdata.name %}: {{ rdata.name }}{% endif %}{% if rdata.href %} (`{{ rdata.href }}`){% endif %}{% endfor %}{% endif %}
+{% if rc.changes is mapping %}{% for field, diff in rc.changes.items() %}  - `{{ field }}`: {{ diff.before if diff is mapping and diff.before is not none else 'null' }} → {{ diff.after if diff is mapping and diff.after is not none else 'null' }}
+{% endfor %}{% endif %}
+{% endfor %}
+{% endif %}
+
+{% if notifications is defined and notifications %}
+### Notifications
+{% for n in notifications %}
+- **{{ n.notification_type }}**{% if n.info is mapping %}{% for k, v in n.info.items() %}: {{ k }}={{ v }}{% endfor %}{% endif %}
+{% endfor %}
+{% endif %}
+
+[View on PCE](https://{{ pce_fqdn }}:8443/#{{ href | replace('/orgs/1', '') }})

@@ -1,0 +1,10 @@
+PCE: {{ pce_fqdn }}
+Event: {{ event_type }}
+Status: {{ status | default('null') }} | Severity: {{ severity | default('info') }}
+Time: {{ timestamp }}
+Created By: {% if created_by.user is defined %}{{ created_by.user.username }}{% elif created_by.system is defined %}system{% else %}unknown{% endif %}
+{% if action is defined and action is mapping and action.api_endpoint %}API: {{ action.api_method }} {{ action.api_endpoint }} ({{ action.http_status_code | default('?') }}){% if action.src_ip and action.src_ip != 'FILTERED' %}
+Source IP: {{ action.src_ip }}{% endif %}{% endif %}
+{% if resource_changes is defined and resource_changes %}Changes:{% for rc in resource_changes %}
+  {{ rc.change_type | upper }}{% if rc.resource is mapping %}{% for rtype, rdata in rc.resource.items() %} {{ rtype }}{% if rdata.name %} "{{ rdata.name }}"{% endif %}{% endfor %}{% endif %}{% if rc.changes is mapping %}{% for field, diff in rc.changes.items() %} [{{ field }}: {{ diff.before if diff is mapping else '' }} → {{ diff.after if diff is mapping else '' }}]{% endfor %}{% endif %}{% endfor %}{% endif %}
+View: https://{{ pce_fqdn }}:8443/#{{ href | replace('/orgs/1', '') }}
