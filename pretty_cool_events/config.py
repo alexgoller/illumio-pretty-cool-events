@@ -24,6 +24,7 @@ class PCEConfig(BaseModel):
     pce_api_secret: str
     pce_org: int = 1
     pce_poll_interval: int = 10
+    pce_timeout: int = 30
     verify_tls: bool = True
 
 
@@ -224,7 +225,7 @@ def _normalize_raw_config(raw: dict[str, Any]) -> dict[str, Any]:
     watchers_section = raw.get("watchers", {})
 
     pce_keys = ["pce", "pce_api_user", "pce_api_secret", "pce_org",
-                "pce_poll_interval", "verify_tls"]
+                "pce_poll_interval", "pce_timeout", "verify_tls"]
 
     pce_config = {}
     for key in pce_keys:

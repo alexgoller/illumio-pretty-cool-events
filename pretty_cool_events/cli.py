@@ -97,6 +97,7 @@ def run(config_path: str | None, log_level: str) -> None:
             api_secret=app_config.pce.pce_api_secret,
             org_id=app_config.pce.pce_org,
             verify_tls=app_config.pce.verify_tls,
+            timeout=float(app_config.pce.pce_timeout),
         )
 
         if not pce_client.health_check():

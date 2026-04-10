@@ -34,11 +34,15 @@ class PCEClient:
         if not self._base_url.startswith("http"):
             self._base_url = f"https://{self._base_url}"
 
+        # Explicit timeout for all phases (connect, read, write, pool)
+        # to handle slow environments like Docker emulation
+        self._httpx_timeout = httpx.Timeout(timeout, connect=timeout)
+
         self._client_args = {
             "base_url": self._base_url,
             "auth": (api_user, api_secret),
             "verify": verify_tls,
-            "timeout": timeout,
+            "timeout": self._httpx_timeout,
             "headers": {"User-Agent": "pretty-cool-events/1.0"},
         }
         transport = httpx.HTTPTransport(retries=MAX_RETRIES)

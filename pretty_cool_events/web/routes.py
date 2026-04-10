@@ -271,10 +271,10 @@ def config_page() -> str:
     config = _get_config()
 
     if request.method == "POST":
-        for key in ["pce", "pce_api_user", "pce_org", "pce_poll_interval"]:
+        for key in ["pce", "pce_api_user", "pce_org", "pce_poll_interval", "pce_timeout"]:
             val = request.form.get(key)
             if val is not None:
-                if key == "pce_org" or key == "pce_poll_interval":
+                if key in ("pce_org", "pce_poll_interval", "pce_timeout"):
                     try:
                         setattr(config.pce, key, int(val))
                     except ValueError:
