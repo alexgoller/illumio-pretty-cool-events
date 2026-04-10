@@ -392,6 +392,79 @@ def test_plugin(plugin_name: str, config_path: str) -> None:
         raise SystemExit(1) from e
 
 
+@cli.command("verify-plugin")
+@click.argument("plugin_name")
+@click.option("--config", "config_path", required=True, type=click.Path(exists=True))
+def verify_plugin(plugin_name: str, config_path: str) -> None:
+    """Verify a plugin by sending a code and confirming receipt.
+
+    Sends a 6-character verification code through the plugin.
+    You then check the destination (Slack, email, etc.) for the code
+    and enter it to confirm the plugin is working end-to-end.
+    """
+    import secrets
+    import string
+
+    _setup_logging("WARNING")
+
+    try:
+        app_config = load_config(config_path)
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise SystemExit(1) from e
+
+    from pretty_cool_events.plugins.base import get_registry, load_all_plugins
+
+    load_all_plugins()
+    registry = get_registry()
+
+    if plugin_name not in registry:
+        console.print(f"[red]Plugin '{plugin_name}' not registered[/red]")
+        raise SystemExit(1)
+
+    if plugin_name not in app_config.plugin_config:
+        console.print(f"[red]Plugin '{plugin_name}' not in config[/red]")
+        raise SystemExit(1)
+
+    code = "".join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(6))
+
+    plugin = registry[plugin_name]()
+    plugin.configure(app_config.get_plugin_config(plugin_name))
+
+    verify_event = {
+        "event_type": "plugin.verification",
+        "status": "success",
+        "severity": "info",
+        "timestamp": "now",
+        "pce_fqdn": app_config.pce.pce,
+        "href": "/verification",
+        "created_by": {"system": {}},
+        "verification_code": code,
+        "notifications": [],
+        "resource_changes": [],
+        "action": None,
+    }
+
+    template_globals = {"pce_fqdn": app_config.pce.pce, "pce_org": app_config.pce.pce_org}
+
+    console.print(f"Sending verification code via [cyan]{plugin_name}[/cyan]...")
+    try:
+        plugin.send(verify_event, {"template": "verify.html"}, template_globals)
+    except Exception as e:
+        console.print(f"[red]Send failed:[/red] {e}")
+        raise SystemExit(1) from e
+
+    console.print(f"\n[green]Code sent![/green] Check your {plugin_name.replace('PCE', '')} destination.")
+    console.print(f"\nExpected code: [bold]{code}[/bold]\n")
+
+    user_code = click.prompt("Enter the code you received").strip().upper()
+    if user_code == code:
+        console.print(f"[green]Verified![/green] {plugin_name} is configured correctly.")
+    else:
+        console.print(f"[red]Code mismatch.[/red] Expected {code}, got {user_code}")
+        raise SystemExit(1)
+
+
 @cli.command("create-plugin")
 @click.argument("plugin_name")
 @click.option("--description", "-d", default="", help="Short description of the plugin")

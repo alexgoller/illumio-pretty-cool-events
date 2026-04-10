@@ -758,6 +758,107 @@ def api_health() -> Any:
     return jsonify({"status": "ok"})
 
 
+# --- Plugin verification ---
+
+_plugin_verify_codes: dict[str, dict[str, Any]] = {}  # plugin_name -> {code, timestamp, verified}
+
+
+@bp.route("/api/plugins/verify", methods=["POST"])
+@_auth_required
+def api_plugin_verify() -> Any:
+    """Send a verification code through a plugin to test configuration."""
+    import secrets
+    import string
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No JSON body"}), 400
+
+    plugin_name = data.get("plugin", "")
+    if not plugin_name:
+        return jsonify({"error": "plugin name required"}), 400
+
+    config = _get_config()
+    if plugin_name not in config.plugin_config:
+        return jsonify({"error": f"Plugin '{plugin_name}' not configured"}), 400
+
+    # Generate a 6-char verification code
+    code = "".join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(6))
+
+    # Build a verification event
+    verify_event = {
+        "event_type": "plugin.verification",
+        "status": "success",
+        "severity": "info",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "pce_fqdn": config.pce.pce,
+        "href": "/verification",
+        "created_by": {"system": {}},
+        "verification_code": code,
+        "notifications": [],
+        "resource_changes": [],
+        "action": None,
+    }
+
+    template_globals = {"pce_fqdn": config.pce.pce, "pce_org": config.pce.pce_org}
+
+    # Get the extra_data from the request (channel, email_to, etc.)
+    extra_data = data.get("extra_data", {})
+    extra_data.setdefault("template", "verify.html")
+
+    # Load and send through the plugin
+    from pretty_cool_events.plugins.base import get_registry, load_all_plugins
+
+    load_all_plugins()
+    registry = get_registry()
+
+    if plugin_name not in registry:
+        return jsonify({"error": f"Plugin class '{plugin_name}' not found"}), 400
+
+    plugin = registry[plugin_name]()
+    plugin.configure(config.get_plugin_config(plugin_name))
+
+    try:
+        plugin.send(verify_event, extra_data, template_globals)
+        _plugin_verify_codes[plugin_name] = {
+            "code": code,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "verified": False,
+        }
+        return jsonify({"ok": True, "code": code, "plugin": plugin_name})
+    except Exception as e:
+        logger.exception("Plugin verification send failed: %s", plugin_name)
+        return jsonify({"error": f"Send failed: {e}"}), 500
+
+
+@bp.route("/api/plugins/verify/confirm", methods=["POST"])
+@_auth_required
+def api_plugin_verify_confirm() -> Any:
+    """Confirm a verification code was received at the destination."""
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No JSON body"}), 400
+
+    plugin_name = data.get("plugin", "")
+    code = data.get("code", "").strip().upper()
+
+    pending = _plugin_verify_codes.get(plugin_name)
+    if not pending:
+        return jsonify({"error": "No pending verification for this plugin"}), 400
+
+    if pending["code"] == code:
+        pending["verified"] = True
+        return jsonify({"ok": True, "verified": True, "plugin": plugin_name})
+    return jsonify({"ok": False, "verified": False, "error": "Code does not match"}), 400
+
+
+@bp.route("/api/plugins/verify/status")
+@_auth_required
+def api_plugin_verify_status() -> Any:
+    """Get verification status for all plugins."""
+    return jsonify(_plugin_verify_codes)
+
+
 # --- Watcher dry-run ---
 
 @bp.route("/api/watchers/test", methods=["POST"])

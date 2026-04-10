@@ -22,11 +22,19 @@
             <strong>{{ meta.display_name }}</strong>
             <small class="text-muted ms-2">{{ name }}</small>
           </div>
-          <div class="form-check form-switch mb-0">
-            <input class="form-check-input" type="checkbox" role="switch"
-                   id="enable-{{ name }}" name="enabled_plugins" value="{{ name }}"
-                   {{ 'checked' if is_enabled }}
-                   onchange="togglePlugin('{{ name }}', this.checked)">
+          <div class="d-flex align-items-center gap-2">
+            <span class="badge d-none" id="verify-badge-{{ name }}"></span>
+            {% if is_enabled %}
+            <button type="button" class="btn btn-sm btn-outline-info py-0" onclick="verifyPlugin('{{ name }}')" title="Send verification code">
+              <i class="bi bi-patch-check"></i> Verify
+            </button>
+            {% endif %}
+            <div class="form-check form-switch mb-0">
+              <input class="form-check-input" type="checkbox" role="switch"
+                     id="enable-{{ name }}" name="enabled_plugins" value="{{ name }}"
+                     {{ 'checked' if is_enabled }}
+                     onchange="togglePlugin('{{ name }}', this.checked)">
+            </div>
           </div>
         </div>
         <div class="card-body">
@@ -87,6 +95,20 @@
     </button>
   </div>
 </form>
+
+<!-- Verification modal -->
+<div class="modal fade" id="verifyModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-patch-check"></i> Plugin Verification</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="verifyModalBody">
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -114,5 +136,85 @@ function togglePasswordVisibility(fieldId) {
   const input = document.getElementById(fieldId);
   input.type = input.type === 'password' ? 'text' : 'password';
 }
+
+function verifyPlugin(pluginName) {
+  const body = document.getElementById('verifyModalBody');
+  body.innerHTML = `
+    <div class="text-center mb-3">
+      <div class="spinner-border spinner-border-sm"></div>
+      Sending verification code via <strong>${pluginName}</strong>...
+    </div>`;
+  new bootstrap.Modal(document.getElementById('verifyModal')).show();
+
+  fetch('{{ url_for("main.api_plugin_verify") }}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({plugin: pluginName}),
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.error) {
+      body.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> ${data.error}</div>`;
+      return;
+    }
+    body.innerHTML = `
+      <div class="alert alert-success mb-3">
+        <i class="bi bi-send-check"></i> Verification code sent via <strong>${pluginName}</strong>
+      </div>
+      <p>Check your ${pluginName.replace('PCE','')} destination for a message containing the code.</p>
+      <p class="text-center">
+        <span class="badge bg-dark fs-4 px-4 py-2 font-monospace">${data.code}</span>
+      </p>
+      <hr>
+      <p class="small text-muted">Enter the code you received to confirm the plugin is working:</p>
+      <div class="input-group">
+        <input type="text" class="form-control font-monospace text-uppercase text-center"
+               id="verify-code-input" maxlength="6" placeholder="Enter 6-char code"
+               style="letter-spacing:0.3em; font-size:1.2em;">
+        <button class="btn btn-primary" onclick="confirmVerify('${pluginName}')">
+          <i class="bi bi-check-circle"></i> Confirm
+        </button>
+      </div>
+      <div id="verify-result" class="mt-2"></div>`;
+  })
+  .catch(err => {
+    body.innerHTML = `<div class="alert alert-danger">Error: ${err}</div>`;
+  });
+}
+
+function confirmVerify(pluginName) {
+  const code = document.getElementById('verify-code-input').value;
+  const result = document.getElementById('verify-result');
+
+  fetch('{{ url_for("main.api_plugin_verify_confirm") }}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({plugin: pluginName, code: code}),
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.verified) {
+      result.innerHTML = '<div class="alert alert-success"><i class="bi bi-patch-check-fill"></i> <strong>Verified!</strong> Plugin is configured correctly.</div>';
+      const badge = document.getElementById('verify-badge-' + pluginName);
+      badge.className = 'badge bg-success d-inline';
+      badge.innerHTML = '<i class="bi bi-patch-check-fill"></i> Verified';
+    } else {
+      result.innerHTML = `<div class="alert alert-warning"><i class="bi bi-x-circle"></i> ${data.error || 'Code does not match'}</div>`;
+    }
+  });
+}
+
+// Load verification status on page load
+fetch('{{ url_for("main.api_plugin_verify_status") }}')
+  .then(r => r.json())
+  .then(statuses => {
+    for (const [name, info] of Object.entries(statuses)) {
+      const badge = document.getElementById('verify-badge-' + name);
+      if (badge && info.verified) {
+        badge.className = 'badge bg-success d-inline';
+        badge.innerHTML = '<i class="bi bi-patch-check-fill"></i> Verified';
+      }
+    }
+  });
 </script>
 {% endblock %}
