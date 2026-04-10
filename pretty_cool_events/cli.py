@@ -76,60 +76,25 @@ def run(config_path: str | None, log_level: str) -> None:
         console.print("[yellow]Web UI enabled - configure via browser.[/yellow]")
         app_config = create_bootstrap_config(bootstrap_path)
 
-    from pretty_cool_events.event_loop import EventLoop, TrafficWatcherLoop
-    from pretty_cool_events.pce_client import PCEClient
-    from pretty_cool_events.plugins.base import create_plugins
+    from pretty_cool_events.service import ServiceManager
     from pretty_cool_events.stats import StatsTracker
-    from pretty_cool_events.watcher import WatcherRegistry
 
     stats = StatsTracker()
-    plugins: dict[str, Any] = {}
-    pce_client: PCEClient | None = None
-    loops_to_stop: list[Any] = []
+    svc = ServiceManager(app_config, stats)
+    svc.start()
 
-    # Only start PCE polling if credentials are configured
-    has_pce = bool(app_config.pce.pce and app_config.pce.pce_api_user and app_config.pce.pce_api_secret)
+    has_pce = svc.pce_client is not None
 
-    if has_pce:
-        pce_client = PCEClient(
-            base_url=app_config.pce.pce_url,
-            api_user=app_config.pce.pce_api_user,
-            api_secret=app_config.pce.pce_api_secret,
-            org_id=app_config.pce.pce_org,
-            verify_tls=app_config.pce.verify_tls,
-            timeout=float(app_config.pce.pce_timeout),
-        )
-
-        if not pce_client.health_check():
-            console.print("[yellow]Warning:[/yellow] PCE health check failed. Continuing anyway...")
-
-        plugins = create_plugins(app_config)
-        watcher_registry = WatcherRegistry(app_config.watchers)
-        event_loop = EventLoop(pce_client, watcher_registry, stats, plugins, app_config)
-        loops_to_stop.append(event_loop)
-
-        event_thread = threading.Thread(target=event_loop.run, name="event-loop", daemon=True)
-        event_thread.start()
-        logger.info("Event loop started")
-
-        if app_config.traffic_watchers:
-            traffic_loop = TrafficWatcherLoop(pce_client, app_config, stats, plugins)
-            loops_to_stop.append(traffic_loop)
-            traffic_thread = threading.Thread(
-                target=traffic_loop.run, name="traffic-watchers", daemon=True
-            )
-            traffic_thread.start()
-            logger.info("Traffic watcher loop started (%d watchers)", len(app_config.traffic_watchers))
-    else:
-        console.print("[yellow]PCE not configured. Web UI only (configure via browser).[/yellow]")
-
-    # Start web UI if configured (always starts in bootstrap mode)
+    # Start web UI
     if app_config.httpd.enabled or not has_pce:
         from pretty_cool_events.web.app import create_app
 
-        throttler = loops_to_stop[0].throttler if loops_to_stop and hasattr(loops_to_stop[0], 'throttler') else None
-        flask_app = create_app(app_config, stats, plugins, pce_client=pce_client,
-                               throttler=throttler)
+        flask_app = create_app(
+            app_config, stats, svc.plugins,
+            pce_client=svc.pce_client,
+            throttler=svc.throttler,
+            service_manager=svc,
+        )
         web_thread = threading.Thread(
             target=lambda: flask_app.run(
                 host=app_config.httpd.address,
@@ -147,8 +112,7 @@ def run(config_path: str | None, log_level: str) -> None:
 
     def _shutdown(signum: int, frame: Any) -> None:
         console.print("\n[yellow]Shutting down...[/yellow]")
-        for loop in loops_to_stop:
-            loop.stop()
+        svc.stop()
         shutdown_event.set()
 
     signal.signal(signal.SIGINT, _shutdown)
@@ -160,13 +124,7 @@ def run(config_path: str | None, log_level: str) -> None:
         console.print(f"[green]Web UI running on http://0.0.0.0:{app_config.httpd.port}[/green]")
         console.print("[yellow]Configure PCE credentials in the browser to start monitoring.[/yellow]")
 
-    # Block until shutdown
-    if has_pce:
-        event_thread.join()
-        pce_client.close()
-    else:
-        shutdown_event.wait()
-
+    shutdown_event.wait()
     console.print("[green]Shutdown complete.[/green]")
 
 

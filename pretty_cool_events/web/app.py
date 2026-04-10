@@ -22,6 +22,7 @@ def create_app(
     plugins: dict[str, OutputPlugin],
     pce_client: PCEClient | None = None,
     throttler: Throttler | None = None,
+    service_manager: Any = None,
 ) -> Flask:
     """Create and configure the Flask application."""
     template_dir = str(Path(__file__).parent / "templates")
@@ -59,6 +60,7 @@ def create_app(
     app.config["PLUGINS"] = plugins
     app.config["PCE_CLIENT"] = pce_client
     app.config["THROTTLER"] = throttler
+    app.config["SERVICE_MANAGER"] = service_manager
 
     from pretty_cool_events.web.routes import bp
     app.register_blueprint(bp)

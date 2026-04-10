@@ -795,6 +795,28 @@ def api_health() -> Any:
     return jsonify({"status": "ok"})
 
 
+# --- Service reload ---
+
+@bp.route("/api/reload", methods=["POST"])
+@_auth_required
+def api_reload() -> Any:
+    """Reload config and restart event loop, plugins, and watchers."""
+    svc = current_app.config.get("SERVICE_MANAGER")
+    if not svc:
+        return jsonify({"error": "Service manager not available"}), 503
+
+    result = svc.reload()
+    logger.info("Service reloaded: %s", result)
+
+    # Update the Flask app's references to the new objects
+    current_app.config["APP_CONFIG"] = svc.config
+    current_app.config["PLUGINS"] = svc.plugins
+    current_app.config["PCE_CLIENT"] = svc.pce_client
+    current_app.config["THROTTLER"] = svc.throttler
+
+    return jsonify({"ok": True, "message": result})
+
+
 # --- Plugin verification ---
 
 _plugin_verify_codes: dict[str, dict[str, Any]] = {}  # plugin_name -> {code, timestamp, verified}

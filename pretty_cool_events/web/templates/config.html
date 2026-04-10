@@ -87,6 +87,20 @@
   <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Save Configuration</button>
 </form>
 
+<!-- Reload service -->
+<div class="card mb-4 mt-4 border-warning">
+  <div class="card-body d-flex justify-content-between align-items-center">
+    <div>
+      <strong><i class="bi bi-arrow-clockwise"></i> Apply Changes</strong>
+      <div class="form-text">Reload plugins, watchers, and PCE connection from saved config. No restart needed.</div>
+    </div>
+    <button class="btn btn-warning" onclick="reloadService()">
+      <i class="bi bi-arrow-clockwise"></i> Reload Service
+    </button>
+  </div>
+  <div id="reload-result" class="px-3 pb-2"></div>
+</div>
+
 <!-- Traffic Watchers (outside the form - managed via their own API) -->
 <div class="card mb-4 mt-4">
   <div class="card-header d-flex justify-content-between align-items-center">
@@ -182,6 +196,23 @@
 
 {% block scripts %}
 <script>
+function reloadService() {
+  const result = document.getElementById('reload-result');
+  result.innerHTML = '<span class="text-muted"><i class="bi bi-hourglass-split"></i> Reloading...</span>';
+  fetch('{{ url_for("main.api_reload") }}', {method: 'POST'})
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        result.innerHTML = `<div class="alert alert-success py-1 mb-0"><i class="bi bi-check-circle"></i> ${data.message}</div>`;
+      } else {
+        result.innerHTML = `<div class="alert alert-danger py-1 mb-0"><i class="bi bi-x-circle"></i> ${data.error}</div>`;
+      }
+    })
+    .catch(err => {
+      result.innerHTML = `<div class="alert alert-danger py-1 mb-0">Error: ${err}</div>`;
+    });
+}
+
 fetch('{{ url_for("main.api_throttle") }}')
   .then(r => r.json())
   .then(data => {

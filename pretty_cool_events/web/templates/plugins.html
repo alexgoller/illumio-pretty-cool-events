@@ -89,10 +89,14 @@
     {% endfor %}
   </div>
 
-  <div class="sticky-bottom bg-body border-top p-3 mt-2">
+  <div class="sticky-bottom bg-body border-top p-3 mt-2 d-flex gap-2">
     <button type="submit" class="btn btn-primary">
       <i class="bi bi-save"></i> Save Plugin Configuration
     </button>
+    <button type="button" class="btn btn-warning" onclick="saveAndReload()">
+      <i class="bi bi-arrow-clockwise"></i> Save & Reload
+    </button>
+    <span id="reload-msg" class="align-self-center small"></span>
   </div>
 </form>
 
@@ -130,6 +134,26 @@ function togglePlugin(name, enabled) {
     new bootstrap.Collapse(howto, {toggle: false}).hide();
     card.querySelector('.bi').classList.replace('text-primary', 'text-muted');
   }
+}
+
+function saveAndReload() {
+  // Submit the form, then reload service after redirect
+  const form = document.getElementById('plugins-form');
+  const formData = new FormData(form);
+  fetch(form.action, {method: 'POST', body: formData})
+    .then(() => {
+      document.getElementById('reload-msg').innerHTML = '<i class="bi bi-hourglass-split"></i> Reloading...';
+      return fetch('{{ url_for("main.api_reload") }}', {method: 'POST'});
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        document.getElementById('reload-msg').innerHTML = `<span class="text-success"><i class="bi bi-check-circle"></i> ${data.message}</span>`;
+        setTimeout(() => location.reload(), 1500);
+      } else {
+        document.getElementById('reload-msg').innerHTML = `<span class="text-danger">${data.error}</span>`;
+      }
+    });
 }
 
 function togglePasswordVisibility(fieldId) {
