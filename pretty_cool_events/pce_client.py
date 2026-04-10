@@ -38,18 +38,25 @@ class PCEClient:
         # to handle slow environments like Docker emulation
         self._httpx_timeout = httpx.Timeout(timeout, connect=timeout)
 
+        # Disable keep-alive connection pooling. Stale pooled connections
+        # cause ConnectTimeout in Docker/emulated environments. Fresh
+        # connections work reliably (0.6s per request, proven via testing).
+        no_keepalive = httpx.Limits(
+            max_connections=100,
+            max_keepalive_connections=0,
+            keepalive_expiry=0,
+        )
+        transport = httpx.HTTPTransport(verify=verify_tls, limits=no_keepalive)
+        transport_web = httpx.HTTPTransport(verify=verify_tls, limits=no_keepalive)
+
         self._client_args = {
             "base_url": self._base_url,
             "auth": (api_user, api_secret),
-            "verify": verify_tls,
             "timeout": self._httpx_timeout,
             "headers": {"User-Agent": "pretty-cool-events/1.0"},
         }
-        # No HTTPTransport retries - the event loop already retries via polling.
-        # Transport retries can interfere with timeout propagation.
-        self._client = httpx.Client(**self._client_args)
-        # Separate client for web UI requests so they don't block on the event loop
-        self._web_client = httpx.Client(**self._client_args)
+        self._client = httpx.Client(transport=transport, **self._client_args)
+        self._web_client = httpx.Client(transport=transport_web, **self._client_args)
         # Serialize requests per client to prevent overloading the PCE
         self._lock = threading.Lock()
         self._web_lock = threading.Lock()
