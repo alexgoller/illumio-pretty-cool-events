@@ -45,15 +45,11 @@ class PCEClient:
             "timeout": self._httpx_timeout,
             "headers": {"User-Agent": "pretty-cool-events/1.0"},
         }
-        transport = httpx.HTTPTransport(retries=MAX_RETRIES)
-        self._client = httpx.Client(
-            transport=transport, **self._client_args,
-        )
+        # No HTTPTransport retries - the event loop already retries via polling.
+        # Transport retries can interfere with timeout propagation.
+        self._client = httpx.Client(**self._client_args)
         # Separate client for web UI requests so they don't block on the event loop
-        transport_web = httpx.HTTPTransport(retries=MAX_RETRIES)
-        self._web_client = httpx.Client(
-            transport=transport_web, **self._client_args,
-        )
+        self._web_client = httpx.Client(**self._client_args)
         # Serialize requests per client to prevent overloading the PCE
         self._lock = threading.Lock()
         self._web_lock = threading.Lock()
