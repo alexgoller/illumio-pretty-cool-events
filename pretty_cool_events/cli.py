@@ -92,7 +92,7 @@ def run(config_path: str | None, log_level: str) -> None:
 
     if has_pce:
         pce_client = PCEClient(
-            base_url=app_config.pce.pce,
+            base_url=app_config.pce.pce_url,
             api_user=app_config.pce.pce_api_user,
             api_secret=app_config.pce.pce_api_secret,
             org_id=app_config.pce.pce_org,

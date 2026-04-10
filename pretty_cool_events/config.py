@@ -20,11 +20,21 @@ class PCEConfig(BaseModel):
     """PCE connection settings."""
 
     pce: str
+    pce_port: int = 8443
     pce_api_user: str
     pce_api_secret: str
     pce_org: int = 1
     pce_poll_interval: int = 10
     pce_timeout: int = 30
+
+    @property
+    def pce_url(self) -> str:
+        """Full PCE base URL with port. Handles port in hostname or separate field."""
+        host = self.pce
+        if ":" in host.split("//")[-1]:
+            # Port already in hostname (e.g. pce.example.com:8443)
+            return host
+        return f"{host}:{self.pce_port}"
     verify_tls: bool = True
 
 
@@ -225,7 +235,7 @@ def _normalize_raw_config(raw: dict[str, Any]) -> dict[str, Any]:
     watchers_section = raw.get("watchers", {})
 
     pce_keys = ["pce", "pce_api_user", "pce_api_secret", "pce_org",
-                "pce_poll_interval", "pce_timeout", "verify_tls"]
+                "pce_port", "pce_poll_interval", "pce_timeout", "verify_tls"]
 
     pce_config = {}
     for key in pce_keys:
