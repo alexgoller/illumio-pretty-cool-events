@@ -74,11 +74,11 @@ class PCEClient:
             return self._web_client, self._web_lock
         return self._client, self._lock
 
-    def health_check(self, timeout: float = 10.0) -> bool:
-        """Check PCE connectivity with a short timeout."""
+    def health_check(self) -> bool:
+        """Check PCE connectivity using the configured timeout."""
         with self._lock:
             try:
-                r = self._client.get("/api/v2/health", timeout=timeout)
+                r = self._client.get("/api/v2/health")
                 return r.status_code == 200
             except httpx.HTTPError as e:
                 logger.error("PCE health check failed: %s", e)
