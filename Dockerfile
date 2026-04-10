@@ -20,7 +20,6 @@ LABEL org.opencontainers.image.licenses="MIT"
 WORKDIR /app
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin/pce-events /usr/local/bin/pce-events
-COPY pretty_cool_events/ pretty_cool_events/
 
 ENV PYTHONWARNINGS="ignore:Unverified HTTPS request"
 
