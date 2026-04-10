@@ -374,6 +374,43 @@ def delete_watcher() -> str:
     return redirect(url_for("main.watchers_page"))
 
 
+@bp.route("/api/watchers/update", methods=["PUT"])
+@_auth_required
+def api_update_watcher() -> Any:
+    """Update an existing watcher action."""
+    config = _get_config()
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No JSON body"}), 400
+
+    pattern = data.get("pattern", "")
+    index = data.get("index")
+    if pattern not in config.watchers or index is None:
+        return jsonify({"error": "Watcher not found"}), 404
+
+    try:
+        idx = int(index)
+    except (ValueError, TypeError):
+        return jsonify({"error": "Invalid index"}), 400
+
+    if not (0 <= idx < len(config.watchers[pattern])):
+        return jsonify({"error": "Index out of range"}), 404
+
+    action = config.watchers[pattern][idx]
+    if "status" in data:
+        action.status = data["status"]
+    if "plugin" in data:
+        action.plugin = data["plugin"]
+    if "severity" in data:
+        action.severity = data["severity"]
+    if "template" in data:
+        action.extra_data["template"] = data["template"]
+
+    _persist_config()
+    logger.info("Watcher updated: %s[%d] -> %s", pattern, idx, action.plugin)
+    return jsonify({"ok": True, "pattern": pattern})
+
+
 # ---------------------------------------------------------------------------
 # API endpoints
 # ---------------------------------------------------------------------------
