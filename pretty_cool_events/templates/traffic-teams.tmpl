@@ -1,0 +1,47 @@
+{
+  "type": "message",
+  "attachments": [
+    {
+      "contentType": "application/vnd.microsoft.card.adaptive",
+      "content": {
+        "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+        "type": "AdaptiveCard",
+        "version": "1.4",
+        "body": [
+          {
+            "type": "TextBlock",
+            "size": "Medium",
+            "weight": "Bolder",
+            "color": "Attention",
+            "text": "Traffic Alert: {{ traffic_watcher }} ({{ flows_count }} flows)"
+          },
+          {
+            "type": "FactSet",
+            "facts": [
+              {"title": "PCE", "value": "{{ pce_fqdn }}"},
+              {"title": "Time", "value": "{{ timestamp }}"},
+              {"title": "Flows", "value": "{{ flows_count }}"},
+              {"title": "Decisions", "value": "{{ policy_decisions | join(', ') }}"},
+              {"title": "Sources", "value": "{{ src_include or 'any' }}"},
+              {"title": "Destinations", "value": "{{ dst_include or 'any' }}"},
+              {"title": "Services", "value": "{{ services_include or 'any' }}"}
+            ]
+          }{% if sample_flows %},
+          {
+            "type": "TextBlock",
+            "text": "Sample Flows:",
+            "weight": "Bolder",
+            "spacing": "Medium"
+          },
+          {
+            "type": "TextBlock",
+            "text": "{% for f in sample_flows %}{{ f.get('Source Hostname', f.get('Source IP', '?')) }} → {{ f.get('Destination Hostname', f.get('Destination IP', '?')) }} :{{ f.get('Port', '?') }}/{{ f.get('Protocol', '?') }} ({{ f.get('Reported Policy Decision', '?') }})\n{% endfor %}",
+            "wrap": true,
+            "fontType": "Monospace",
+            "size": "Small"
+          }{% endif %}
+        ]
+      }
+    }
+  ]
+}

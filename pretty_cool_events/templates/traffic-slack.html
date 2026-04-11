@@ -1,0 +1,36 @@
+[
+	{
+		"type": "header",
+		"text": {
+			"type": "plain_text",
+			"text": "Traffic Alert: {{ traffic_watcher }}"
+		}
+	},
+	{
+		"type": "section",
+		"fields": [
+			{"type": "mrkdwn", "text": "*PCE:* `{{ pce_fqdn }}`"},
+			{"type": "mrkdwn", "text": "*Flows:* {{ flows_count }}"},
+			{"type": "mrkdwn", "text": "*Decisions:* {{ policy_decisions | join(', ') }}"},
+			{"type": "mrkdwn", "text": "*Time:* {{ timestamp }}"}
+		]
+	},
+	{
+		"type": "section",
+		"fields": [
+			{"type": "mrkdwn", "text": "*Sources:* `{{ src_include or 'any' }}`"},
+			{"type": "mrkdwn", "text": "*Destinations:* `{{ dst_include or 'any' }}`"},
+			{"type": "mrkdwn", "text": "*Services:* `{{ services_include or 'any' }}`"}
+		]
+	}{% if sample_flows %},
+	{
+		"type": "divider"
+	},
+	{
+		"type": "section",
+		"text": {
+			"type": "mrkdwn",
+			"text": "*Sample Flows:*\n{% for f in sample_flows %}`{{ f.get('Source Hostname', f.get('Source IP', '?')) }}` → `{{ f.get('Destination Hostname', f.get('Destination IP', '?')) }}` :{{ f.get('Port', '?') }}/{{ f.get('Protocol', '?') }} ({{ f.get('Reported Policy Decision', '?') }})\n{% endfor %}"
+		}
+	}{% endif %}
+]

@@ -1,0 +1,8 @@
+**Traffic Alert: {{ traffic_watcher }}** — {{ flows_count }} flows detected
+> PCE: `{{ pce_fqdn }}` | {{ timestamp }}
+> Decisions: {{ policy_decisions | join(', ') }}
+> Sources: `{{ src_include or 'any' }}` | Destinations: `{{ dst_include or 'any' }}` | Services: `{{ services_include or 'any' }}`
+{% if sample_flows %}
+Flows:
+{% for f in sample_flows %}> `{{ f.get('Source Hostname', f.get('Source IP', '?')) }}` → `{{ f.get('Destination Hostname', f.get('Destination IP', '?')) }}` :{{ f.get('Port', '?') }}/{{ f.get('Protocol', '?') }} — **{{ f.get('Reported Policy Decision', '?') }}** ({{ f.get('Num Flows', '?') }} flows)
+{% endfor %}{% endif %}

@@ -1,0 +1,1 @@
+Traffic Alert: {{ traffic_watcher }} - {{ flows_count }} {{ policy_decisions | join('/') }} flows on {{ pce_fqdn }} ({{ src_include or 'any' }} -> {{ dst_include or 'any' }} {{ services_include or '' }})
