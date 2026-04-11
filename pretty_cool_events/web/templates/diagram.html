@@ -392,19 +392,30 @@ if (trafficWatchers.length > 0) {
       const y = T_ROW_START + i * T_ROW_GAP;
       const decisions = tw.policy_decisions.map(d => d === 'allowed' ? 'A' : d === 'blocked' ? 'B' : 'PB').join('+');
       const desc = [tw.src_include, tw.dst_include, tw.services_include].filter(Boolean).join(' | ') || 'all traffic';
-      const wNode = tNode(tSvg, T_COL_WATCHER-120, y-22, 240, 44, tw.name, decisions + ' — ' + desc, '#e65100', '#fff');
+      const wFlows = (stats.traffic_watcher_flows || {})[tw.name] || 0;
+      const wRuns = (stats.traffic_watcher_runs || {})[tw.name] || 0;
+      const wSub = decisions + (wRuns > 0 ? ` — ${wFlows} flows (${wRuns} runs)` : ` — ${desc}`);
+      const wNode = tNode(tSvg, T_COL_WATCHER-120, y-22, 240, 44, tw.name, wSub, '#e65100', '#fff');
       tConn(tSvg, tPce, wNode, '#adb5bd', 'url(#t-arrow)');
 
       if (!tPluginSet[tw.plugin]) tPluginSet[tw.plugin] = {rows: []};
       tPluginSet[tw.plugin].rows.push({y: y, node: wNode});
     });
 
+    // Count total traffic flows per plugin from watcher stats
+    const twFlows = stats.traffic_watcher_flows || {};
     Object.entries(tPluginSet).forEach(([pName, info]) => {
       const avgY = info.rows.reduce((s, r) => s + r.y, 0) / info.rows.length;
       const meta = pluginMeta[pName] || {display_name: pName};
       const isEnabled = enabledPlugins.has(pName);
       const color = isEnabled ? '#198754' : '#adb5bd';
-      const sub = isEnabled ? pName : 'DISABLED';
+      // Sum flows for watchers using this plugin
+      let totalFlows = 0;
+      info.rows.forEach(r => {
+        const wName = trafficWatchers.find((tw, i) => i === info.rows.indexOf(r))?.name;
+        if (wName && twFlows[wName]) totalFlows += twFlows[wName];
+      });
+      const sub = !isEnabled ? 'DISABLED' : totalFlows > 0 ? totalFlows + ' flows' : 'no flows yet';
       const pNode = tNode(tSvg, T_COL_PLUGIN-90, avgY-22, 180, 44, meta.display_name, sub, color, '#fff');
       info.rows.forEach(r => tConn(tSvg, r.node, pNode, color, isEnabled ? 'url(#t-arrow-g)' : 'url(#t-arrow)'));
     });
