@@ -292,13 +292,18 @@ class TrafficWatcherLoop:
                         # Send notification via the configured plugin
                         plugin = self._plugins.get(tw.plugin)
                         if plugin:
-                            # Build a summary event for the plugin
+                            # Build a summary event compatible with all templates
                             summary = {
                                 "event_type": f"traffic_watcher.{tw.name}",
                                 "status": "alert",
                                 "severity": "warning",
                                 "timestamp": now.isoformat(),
                                 "pce_fqdn": self._config.pce.pce,
+                                "href": f"/traffic_watcher/{tw.name}",
+                                "created_by": {"system": {}},
+                                "action": None,
+                                "resource_changes": [],
+                                "notifications": [],
                                 "traffic_watcher": tw.name,
                                 "flows_count": len(rows),
                                 "policy_decisions": tw.policy_decisions,

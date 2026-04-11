@@ -1,0 +1,18 @@
+Traffic Watcher Alert: {{ traffic_watcher }}
+
+PCE: {{ pce_fqdn }}
+Time: {{ timestamp }}
+Flows Found: {{ flows_count }}
+Policy Decisions: {{ policy_decisions | join(', ') }}
+
+Query:
+  Sources: {{ src_include or 'any' }}
+  Destinations: {{ dst_include or 'any' }}
+  Services: {{ services_include or 'any' }}
+
+{% if sample_flows %}Sample Flows (up to 5):
+{% for f in sample_flows %}
+  {{ f.get('Source Hostname', f.get('Source IP', '?')) }} ({{ f.get('Source Application', '?') }}/{{ f.get('Source Environment', '?') }})
+    -> {{ f.get('Destination Hostname', f.get('Destination IP', '?')) }} ({{ f.get('Destination Application', '?') }}/{{ f.get('Destination Environment', '?') }})
+    Port: {{ f.get('Port', '?') }}/{{ f.get('Protocol', '?') }} | Decision: {{ f.get('Reported Policy Decision', '?') }} | Flows: {{ f.get('Num Flows', '?') }}
+{% endfor %}{% endif %}
