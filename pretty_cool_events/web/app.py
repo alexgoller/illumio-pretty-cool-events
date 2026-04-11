@@ -36,6 +36,8 @@ def create_app(
     app.secret_key = os.environ.get("FLASK_SECRET_KEY") or os.urandom(24)
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+    if os.environ.get("FLASK_SESSION_SECURE"):
+        app.config["SESSION_COOKIE_SECURE"] = True
 
     @app.after_request
     def _set_security_headers(response: Any) -> Any:

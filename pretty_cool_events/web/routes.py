@@ -598,6 +598,8 @@ def api_traffic_download() -> Any:
         return jsonify({"error": "PCE client not available"}), 503
 
     href = request.args.get("href", "")
+    if not href or not re.match(r"^/orgs/\d+/traffic_flows/async_queries/[a-f0-9-]+(/download)?$", href):
+        return jsonify({"error": "Invalid href"}), 400
     if not href:
         return jsonify({"error": "href parameter required"}), 400
 
@@ -917,7 +919,20 @@ def api_plugin_verify_confirm() -> Any:
     if not pending:
         return jsonify({"error": "No pending verification for this plugin"}), 400
 
-    if pending["code"] == code:
+    # Expire codes after 10 minutes
+    from datetime import datetime as _dt
+
+    try:
+        created = _dt.fromisoformat(pending["timestamp"])
+        if (datetime.now(timezone.utc) - created).total_seconds() > 600:
+            del _plugin_verify_codes[plugin_name]
+            return jsonify({"error": "Verification code expired (10 min). Send a new one."}), 400
+    except (ValueError, KeyError):
+        pass
+
+    import hmac
+
+    if hmac.compare_digest(pending["code"], code):
         pending["verified"] = True
         return jsonify({"ok": True, "verified": True, "plugin": plugin_name})
     return jsonify({"ok": False, "verified": False, "error": "Code does not match"}), 400
@@ -990,29 +1005,43 @@ def api_watcher_test() -> Any:
 @bp.route("/api/config/export")
 @_auth_required
 def api_config_export() -> Any:
-    """Download the current config as YAML."""
+    """Download the current config as YAML with secrets masked."""
     config = _get_config()
 
+    import copy
     import io
 
-    buf = io.StringIO()
-    # Build the YAML manually using save_config's logic
     import yaml as _yaml
+
+    _secret_keys = {"pce_api_secret", "smtp_password", "api_token", "api_key",
+                    "slack_bot_token", "client_secret", "signing_secret",
+                    "bearer_token", "password", "access_key_secret",
+                    "access_key", "httpd_password", "token"}
+
+    def _mask(d: Any) -> Any:
+        if isinstance(d, dict):
+            return {k: ("********" if k in _secret_keys and v else _mask(v))
+                    for k, v in d.items()}
+        if isinstance(d, list):
+            return [_mask(i) for i in d]
+        return d
+
+    buf = io.StringIO()
 
     flat: dict[str, Any] = {
         "pce": config.pce.pce,
         "pce_api_user": config.pce.pce_api_user,
-        "pce_api_secret": config.pce.pce_api_secret,
+        "pce_api_secret": "********",
         "pce_org": config.pce.pce_org,
         "pce_poll_interval": config.pce.pce_poll_interval,
         "httpd": config.httpd.enabled,
         "httpd_listener_address": config.httpd.address,
         "httpd_listener_port": config.httpd.port,
         "httpd_username": config.httpd.username,
-        "httpd_password": config.httpd.password,
+        "httpd_password": "********" if config.httpd.password else "",
         "default_template": config.default_template,
         "throttle_default": config.throttle_default,
-        "plugin_config": config.plugin_config,
+        "plugin_config": _mask(copy.deepcopy(config.plugin_config)),
     }
     watchers_out = {p: [a.model_dump() for a in actions]
                     for p, actions in config.watchers.items()}
@@ -1058,6 +1087,18 @@ def api_config_import() -> Any:
         new_config = AppConfig(**normalized)
         new_config.config_path = config.config_path
 
+        # Preserve existing secrets if import has masked/empty values
+        if new_config.pce.pce_api_secret in ("********", ""):
+            new_config.pce.pce_api_secret = config.pce.pce_api_secret
+        if new_config.httpd.password in ("********", ""):
+            new_config.httpd.password = config.httpd.password
+        # Preserve plugin secrets that are masked
+        for pname, pcfg in new_config.plugin_config.items():
+            old_pcfg = config.plugin_config.get(pname, {})
+            for key, val in pcfg.items():
+                if val == "********" and old_pcfg.get(key):
+                    pcfg[key] = old_pcfg[key]
+
         # Replace the app's config
         current_app.config["APP_CONFIG"] = new_config
         _persist_config()
@@ -1090,7 +1131,7 @@ def api_suppression() -> Any:
 
     if request.method == "POST":
         data = request.get_json() or {}
-        minutes = int(data.get("minutes", 60))
+        minutes = max(1, min(int(data.get("minutes", 60)), 10080))  # max 7 days
         reason = data.get("reason", "maintenance")
         if throttler:
             throttler.set_suppression(minutes, reason)
