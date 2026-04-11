@@ -755,9 +755,21 @@ def api_event_stream() -> Response:
     q = stats.subscribe()
 
     def generate() -> Any:
-        # Send initial stats snapshot
-        snap = json.dumps({"type": "stats", **stats.snapshot()}, default=str)
-        yield f"data: {snap}\n\n"
+        # Send lightweight initial stats (exclude large lists for SSE)
+        full_snap = stats.snapshot()
+        lite_snap = {
+            "type": "stats",
+            "events_received": full_snap["events_received"],
+            "events_matched": full_snap["events_matched"],
+            "events_dispatched": full_snap["events_dispatched"],
+            "plugin_stats": full_snap["plugin_stats"],
+            "event_stats": full_snap["event_stats"],
+            "pce_status": full_snap["pce_status"],
+            "pce_last_error": full_snap["pce_last_error"],
+            "pce_last_success": full_snap["pce_last_success"],
+            "pce_consecutive_failures": full_snap["pce_consecutive_failures"],
+        }
+        yield f"data: {json.dumps(lite_snap, default=str)}\n\n"
 
         try:
             while True:

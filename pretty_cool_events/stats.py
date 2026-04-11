@@ -104,9 +104,21 @@ class StatsTracker:
                 self._sse_subscribers.remove(q)
 
     def publish_stats(self) -> None:
-        """Broadcast current stats snapshot to all SSE subscribers."""
-        snap = self.snapshot()
-        data = json.dumps({"type": "stats", **snap}, default=str)
+        """Broadcast lightweight stats to SSE subscribers (no large lists)."""
+        with self._lock:
+            lite = {
+                "type": "stats",
+                "events_received": self._events_received,
+                "events_matched": self._events_matched,
+                "events_dispatched": self._events_dispatched,
+                "plugin_stats": dict(self._plugin_stats),
+                "event_stats": dict(self._event_stats),
+                "pce_status": self._pce_status,
+                "pce_last_error": self._pce_last_error,
+                "pce_last_success": self._pce_last_success,
+                "pce_consecutive_failures": self._pce_consecutive_failures,
+            }
+        data = json.dumps(lite, default=str)
         with self._sse_lock:
             dead: list[queue.Queue[str]] = []
             for q in self._sse_subscribers:
