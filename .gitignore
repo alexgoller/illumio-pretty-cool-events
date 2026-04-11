@@ -140,3 +140,4 @@ backups/
 config-local.yaml
 events.log
 announcement.md
+security-todos.md
