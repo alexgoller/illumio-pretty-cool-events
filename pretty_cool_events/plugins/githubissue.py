@@ -41,10 +41,6 @@ class GithubIssuePlugin(OutputPlugin):
             rendered = self.render_template(template_name, event, template_globals)
             event_type = event.get("event_type", "unknown")
 
-            if not rendered.strip():
-                logger.warning("GithubIssuePlugin: template '%s' rendered empty, skipping", template_name)
-                return
-
             issue = {
                 "title": f"PCE Event: {event_type}",
                 "body": rendered,

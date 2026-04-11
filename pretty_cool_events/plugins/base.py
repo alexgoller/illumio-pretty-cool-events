@@ -71,14 +71,12 @@ class OutputPlugin(ABC):
         template = self._env.get_template(safe_name)
         rendered = template.render(**context)
 
-        # Warn if template rendered empty (likely wrong template for event type)
-        stripped = rendered.strip()
-        if not stripped:
-            logger.warning(
-                "Template '%s' rendered EMPTY for event '%s' - "
-                "wrong template for this event type? "
-                "Traffic events need traffic-* templates, PCE events need standard templates.",
-                safe_name, event.get("event_type", "?"),
+        # Reject empty renders - wrong template for event type
+        if not rendered.strip():
+            raise ValueError(
+                f"Template '{safe_name}' rendered empty for event "
+                f"'{event.get('event_type', '?')}'. "
+                f"Traffic events need traffic-* templates."
             )
         return rendered
 
