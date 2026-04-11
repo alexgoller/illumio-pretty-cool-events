@@ -8,7 +8,7 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar
 
-from jinja2 import Environment, FileSystemLoader, select_autoescape
+from jinja2 import ChainableUndefined, Environment, FileSystemLoader, select_autoescape
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +43,7 @@ class OutputPlugin(ABC):
         self._env = Environment(
             loader=FileSystemLoader(template_dir),
             autoescape=select_autoescape(["html", "xml"]),
+            undefined=ChainableUndefined,
         )
         self._env.filters["json_filter"] = _json_filter
         self._configured = False

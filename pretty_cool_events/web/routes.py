@@ -717,9 +717,12 @@ def api_render_template() -> Any:
     template_globals = {"pce_fqdn": config.pce.pce, "pce_org": config.pce.pce_org}
 
     template_dir = str(importlib.resources.files("pretty_cool_events") / "templates")
+    from jinja2 import ChainableUndefined
+
     env = Environment(
         loader=FileSystemLoader(template_dir),
         autoescape=select_autoescape(["html", "xml"]),
+        undefined=ChainableUndefined,
     )
     env.filters["json_filter"] = lambda v: json.dumps(v, indent=4, sort_keys=True, ensure_ascii=True)
 
