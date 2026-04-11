@@ -69,7 +69,18 @@ class OutputPlugin(ABC):
         context.update(event)  # Event fields override globals
         context["event"] = event  # Also available as nested object
         template = self._env.get_template(safe_name)
-        return template.render(**context)
+        rendered = template.render(**context)
+
+        # Warn if template rendered empty (likely wrong template for event type)
+        stripped = rendered.strip()
+        if not stripped:
+            logger.warning(
+                "Template '%s' rendered EMPTY for event '%s' - "
+                "wrong template for this event type? "
+                "Traffic events need traffic-* templates, PCE events need standard templates.",
+                safe_name, event.get("event_type", "?"),
+            )
+        return rendered
 
     @abstractmethod
     def configure(self, config: dict[str, Any]) -> None:

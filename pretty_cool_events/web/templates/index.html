@@ -292,6 +292,20 @@ function updatePceStatus(data) {
   }
 }
 
+function addPluginError(ev) {
+  const feed = document.getElementById('live-feed');
+  const empty = document.getElementById('live-feed-empty');
+  if (empty) empty.remove();
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td class="small text-nowrap">${new Date(ev.timestamp).toLocaleTimeString()}</td>
+    <td><code>${esc(ev.event_type)}</code></td>
+    <td colspan="3"><span class="badge bg-warning text-dark">PLUGIN ERROR</span> <strong>${esc(ev.plugin)}</strong>: <span class="text-danger small">${esc(ev.error)}</span></td>`;
+  tr.style.backgroundColor = '#fff3cd';
+  feed.insertBefore(tr, feed.firstChild);
+  while (feed.children.length > MAX_FEED_ROWS) feed.removeChild(feed.lastChild);
+}
+
 function addPceError(ev) {
   const feed = document.getElementById('live-feed');
   const empty = document.getElementById('live-feed-empty');
@@ -353,6 +367,8 @@ function connectSSE() {
         addLiveEvent(data);
       } else if (data.type === 'pce_error') {
         addPceError(data);
+      } else if (data.type === 'plugin_error') {
+        addPluginError(data);
       }
     } catch (err) {}
   };

@@ -139,14 +139,25 @@ class EventLoop:
                     continue
 
                 try:
-                    logger.info("Routing %s -> %s", event_type, action.plugin)
+                    logger.info("Routing %s -> %s (template=%s)",
+                                event_type, action.plugin,
+                                extra_data.get("template", "default"))
                     plugin.send(event, extra_data, self._template_globals)
                     self._stats.record_dispatch(event_type, action.plugin, success=True)
                 except Exception as exc:
+                    error_msg = str(exc)
                     self._stats.record_dispatch(event_type, action.plugin,
-                                                success=False, error=str(exc))
-                    logger.exception("Plugin '%s' failed for event %s",
-                                     action.plugin, event_type)
+                                                success=False, error=error_msg)
+                    logger.error("Plugin '%s' failed for event %s: %s",
+                                 action.plugin, event_type, error_msg)
+                    # Broadcast error to SSE for live dashboard visibility
+                    self._stats.publish_event({
+                        "type": "plugin_error",
+                        "event_type": event_type,
+                        "plugin": action.plugin,
+                        "error": error_msg,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    })
 
         # Broadcast updated stats after processing batch
         if events:
