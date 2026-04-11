@@ -197,11 +197,13 @@ class AppConfig(BaseModel):
         return raw
 
     def get_active_plugins(self) -> set[str]:
-        """Return the set of plugin names referenced by watchers."""
+        """Return the set of plugin names referenced by watchers and traffic watchers."""
         plugins: set[str] = set()
         for actions in self.watchers.values():
             for action in actions:
                 plugins.add(action.plugin)
+        for tw in self.traffic_watchers:
+            plugins.add(tw.plugin)
         return plugins
 
 
