@@ -371,6 +371,9 @@ def save_config(config: AppConfig, path: Path | str, backup: bool = True) -> Non
         "httpd_password": config.httpd.password,
         "default_template": config.default_template,
         "throttle_default": config.throttle_default,
+        "enrich_events": config.enrich_events,
+        "dedup_window": config.dedup_window,
+        "group_min": config.group_min,
         "plugin_config": config.plugin_config,
     }
 

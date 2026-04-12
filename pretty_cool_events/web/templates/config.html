@@ -67,6 +67,31 @@
   </div>
 
   <div class="card mb-4">
+    <div class="card-header">Event Enrichment & Dedup</div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="enrich_events" name="enrich_events" {% if config.enrich_events %}checked{% endif %}>
+            <label class="form-check-label" for="enrich_events">Enable Enrichment</label>
+          </div>
+          <div class="form-text">Add runbook links, workload labels, and policy diffs to events before dispatching to plugins.</div>
+        </div>
+        <div class="col-md-4">
+          <label for="dedup_window" class="form-label">Dedup Window (s)</label>
+          <input type="number" class="form-control" id="dedup_window" name="dedup_window" value="{{ config.dedup_window }}">
+          <div class="form-text">Skip duplicate events (same href) within this window. 0 to disable.</div>
+        </div>
+        <div class="col-md-4">
+          <label for="group_min" class="form-label">Group Minimum</label>
+          <input type="number" class="form-control" id="group_min" name="group_min" value="{{ config.group_min }}">
+          <div class="form-text">Collapse N+ events of the same type into one summary notification. Set high to disable.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-4">
     <div class="card-header">Web UI Authentication</div>
     <div class="card-body">
       <div class="row g-3">

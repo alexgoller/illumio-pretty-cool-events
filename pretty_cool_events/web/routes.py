@@ -291,6 +291,15 @@ def config_page() -> str:
         if throttler:
             throttler.update_default(throttle_val)
 
+        # Enrichment & dedup
+        import contextlib
+
+        config.enrich_events = "enrich_events" in request.form
+        with contextlib.suppress(ValueError):
+            config.dedup_window = int(request.form.get("dedup_window", 300))
+        with contextlib.suppress(ValueError):
+            config.group_min = int(request.form.get("group_min", 3))
+
         # Auth settings
         new_user = request.form.get("httpd_username", "")
         new_pass = request.form.get("httpd_password", "")
