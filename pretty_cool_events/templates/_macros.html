@@ -244,9 +244,104 @@
    Usage: {{ event_full(event) }}
    Or for a simpler context: {{ event_full(event, show_json=False) }}
 #}
+{# Runbook link and response guidance #}
+{% macro event_runbook(ev) %}
+{% if ev._runbook is defined and ev._runbook is mapping %}
+<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:8px;">
+  <tr>
+    <td style="padding:8px 16px;background:{% if ev._runbook.severity_hint == 'critical' %}#dc3545{% elif ev._runbook.severity_hint == 'warning' %}#ffc107{% else %}#0d6efd{% endif %};color:{% if ev._runbook.severity_hint == 'warning' %}#000{% else %}#fff{% endif %};font-weight:bold;border:1px solid #dee2e6;">
+      Runbook: {{ ev._runbook.category }}
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:12px 16px;border:1px solid #dee2e6;">
+      <p style="margin:0 0 8px 0;">{{ ev._runbook.response }}</p>
+      <a href="{{ ev._runbook.url }}" style="color:#0d6efd;">View Illumio Documentation</a>
+    </td>
+  </tr>
+</table>
+{% endif %}
+{% endmacro %}
+
+
+{# Policy diff summary #}
+{% macro event_policy_diff(ev) %}
+{% if ev._policy_diff_lines is defined and ev._policy_diff_lines %}
+<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:8px;">
+  <tr>
+    <td style="padding:8px 16px;background:#e9ecef;font-weight:bold;border:1px solid #dee2e6;">
+      Policy Changes
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:12px 16px;border:1px solid #dee2e6;">
+      {% for line in ev._policy_diff_lines %}
+      <div style="margin-bottom:4px;font-family:monospace;font-size:13px;">
+        {% if 'DELETED' in line %}<span style="color:#dc3545;">{{ line }}</span>
+        {% elif 'CREATED' in line %}<span style="color:#198754;">{{ line }}</span>
+        {% else %}<span style="color:#0d6efd;">{{ line }}</span>{% endif %}
+      </div>
+      {% endfor %}
+    </td>
+  </tr>
+</table>
+{% endif %}
+{% endmacro %}
+
+
+{# Workload enrichment display #}
+{% macro event_workloads(ev) %}
+{% if ev._workloads is defined and ev._workloads is mapping %}
+<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:8px;">
+  <tr>
+    <td style="padding:8px 16px;background:#e9ecef;font-weight:bold;border:1px solid #dee2e6;">
+      Workloads
+    </td>
+  </tr>
+  {% for href, wl in ev._workloads.items() %}
+  <tr>
+    <td style="padding:8px 16px;border:1px solid #dee2e6;">
+      <strong>{{ wl.hostname }}</strong>
+      {% if wl.labels %}<br><span style="color:#6c757d;font-size:12px;">{% for k, v in wl.labels.items() %}{{ k }}={{ v }}{% if not loop.last %}, {% endif %}{% endfor %}</span>{% endif %}
+      {% if wl.enforcement_mode %}<br><span style="font-size:12px;">Mode: {{ wl.enforcement_mode }} | {{ "Online" if wl.online else "Offline" }}</span>{% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+{% endmacro %}
+
+
+{# Event grouping notice #}
+{% macro event_group_notice(ev) %}
+{% if ev.is_grouped is defined and ev.is_grouped %}
+<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:8px;">
+  <tr>
+    <td style="padding:8px 16px;background:#6f42c1;color:#fff;font-weight:bold;border:1px solid #dee2e6;">
+      Grouped: {{ ev.group_count }} events of type {{ ev.event_type }}
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:8px 16px;border:1px solid #dee2e6;font-size:13px;">
+      First: {{ ev.group_first_timestamp }} | Last: {{ ev.group_last_timestamp }}
+    </td>
+  </tr>
+</table>
+{% endif %}
+{% endmacro %}
+
+
+{# ===== FULL EVENT RENDER =====
+   Renders the complete event with all sections including enrichment.
+   Usage: {{ event_full(event) }}
+#}
 {% macro event_full(ev, show_json=True) %}
+{{ event_group_notice(ev) }}
 {{ event_header(ev) }}
+{{ event_runbook(ev) }}
+{{ event_policy_diff(ev) }}
 {{ event_action(ev.action) }}
+{{ event_workloads(ev) }}
 {{ event_changes(ev.resource_changes) }}
 {{ event_notifications(ev.notifications) }}
 {% if show_json %}

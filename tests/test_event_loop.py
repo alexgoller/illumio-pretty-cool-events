@@ -92,6 +92,7 @@ class TestEventLoop:
         plugins = {"PCEStdout": bad_plugin}
 
         second_event = dict(sample_event)
+        second_event["href"] = "/orgs/1/events/second-event"
         mock_pce_client.get_events.return_value = [sample_event, second_event]
 
         loop = _make_loop(mock_pce_client, watcher_registry, stats_tracker, plugins, simple_config)

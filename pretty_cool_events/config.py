@@ -174,6 +174,9 @@ class AppConfig(BaseModel):
     httpd: HttpdConfig = Field(default_factory=HttpdConfig)
     default_template: str = "default.html"
     throttle_default: str = ""
+    enrich_events: bool = True
+    dedup_window: int = 300
+    group_min: int = 3
     plugin_config: dict[str, dict[str, Any]] = Field(default_factory=dict)
     watchers: dict[str, list[WatcherAction]] = Field(default_factory=dict)
     traffic_watchers: list[TrafficWatcher] = Field(default_factory=list)
@@ -263,6 +266,9 @@ def _normalize_raw_config(raw: dict[str, Any]) -> dict[str, Any]:
         "httpd": httpd_config,
         "default_template": config_section.get("default_template", "default.html"),
         "throttle_default": config_section.get("throttle_default", ""),
+        "enrich_events": config_section.get("enrich_events", True),
+        "dedup_window": config_section.get("dedup_window", 300),
+        "group_min": config_section.get("group_min", 3),
         "plugin_config": plugin_config,
         "watchers": watchers_section,
         "traffic_watchers": traffic_watchers_section or [],

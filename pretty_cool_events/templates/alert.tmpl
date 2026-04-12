@@ -1,10 +1,17 @@
-PCE: {{ pce_fqdn }}
+{% if is_grouped is defined and is_grouped %}GROUPED: {{ group_count }} {{ event_type }} events ({{ group_first_timestamp }} to {{ group_last_timestamp }})
+{% endif %}PCE: {{ pce_fqdn }}
 Event: {{ event_type }}
 Status: {{ status | default('null') }} | Severity: {{ severity | default('info') }}
 Time: {{ timestamp }}
-Created By: {% if created_by.user is defined %}{{ created_by.user.username }}{% elif created_by.system is defined %}system{% else %}unknown{% endif %}
+Created By: {% if created_by is defined and created_by is mapping %}{% if created_by.user is defined %}{{ created_by.user.username }}{% elif created_by.system is defined %}system{% else %}unknown{% endif %}{% else %}unknown{% endif %}
 {% if action is defined and action is mapping and action.api_endpoint %}API: {{ action.api_method }} {{ action.api_endpoint }} ({{ action.http_status_code | default('?') }}){% if action.src_ip and action.src_ip != 'FILTERED' %}
 Source IP: {{ action.src_ip }}{% endif %}{% endif %}
-{% if resource_changes is defined and resource_changes %}Changes:{% for rc in resource_changes %}
-  {{ rc.change_type | upper }}{% if rc.resource is mapping %}{% for rtype, rdata in rc.resource.items() %} {{ rtype }}{% if rdata.name %} "{{ rdata.name }}"{% endif %}{% endfor %}{% endif %}{% if rc.changes is mapping %}{% for field, diff in rc.changes.items() %} [{{ field }}: {{ diff.before if diff is mapping else '' }} → {{ diff.after if diff is mapping else '' }}]{% endfor %}{% endif %}{% endfor %}{% endif %}
+{% if _policy_diff is defined and _policy_diff %}Policy Diff:
+{{ _policy_diff }}{% endif %}
+{% if _workloads is defined and _workloads is mapping %}Workloads:{% for href, wl in _workloads.items() %}
+  {{ wl.hostname }} ({% for k, v in wl.labels.items() %}{{ k }}={{ v }}{% if not loop.last %}, {% endif %}{% endfor %}){% endfor %}{% endif %}
+{% if _runbook is defined and _runbook is mapping %}
+Runbook: {{ _runbook.category }}
+Response: {{ _runbook.response }}
+Docs: {{ _runbook.url }}{% endif %}
 View: https://{{ pce_fqdn }}:8443/#{{ href | replace('/orgs/1', '') }}

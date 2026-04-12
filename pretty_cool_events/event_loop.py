@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from typing import Any
 
 from pretty_cool_events.config import AppConfig
+from pretty_cool_events.enrichment import EventEnricher
+from pretty_cool_events.event_grouper import EventGrouper
 from pretty_cool_events.pce_client import PCEClient
 from pretty_cool_events.plugins.base import OutputPlugin
 from pretty_cool_events.stats import StatsTracker
@@ -34,6 +36,11 @@ class EventLoop:
         self._plugins = plugins
         self._config = config
         self._throttler = Throttler(config.throttle_default)
+        self._grouper = EventGrouper(
+            dedup_window=config.dedup_window,
+            group_min=config.group_min,
+        )
+        self._enricher = EventEnricher(pce_client=pce_client) if config.enrich_events else None
         self._stop_event = threading.Event()
         self._template_globals = {
             "pce_fqdn": config.pce.pce,
@@ -99,6 +106,9 @@ class EventLoop:
         else:
             self._watermark = poll_time
 
+        # Dedup and group events
+        events = self._grouper.process(events)
+
         for event in events:
             if "event_type" not in event:
                 logger.warning("Malformed event (no event_type): %s", event)
@@ -106,6 +116,13 @@ class EventLoop:
 
             event_type = event["event_type"]
             timestamp = event.get("timestamp", datetime.now(timezone.utc).isoformat())
+
+            # Enrich with workload data, policy diffs, runbook links
+            if self._enricher:
+                try:
+                    self._enricher.enrich(event)
+                except Exception:
+                    logger.debug("Enrichment failed for %s", event_type)
 
             self._stats.record_event(event_type)
             self._stats.record_timeline(timestamp, event_type)
