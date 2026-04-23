@@ -509,6 +509,64 @@ PLUGIN_METADATA: dict[str, PluginMeta] = {
             "template": FieldMeta(label="Default Template", placeholder="chat-markdown.html"),
         },
     ),
+    "PCETelegram": PluginMeta(
+        name="PCETelegram",
+        display_name="Telegram",
+        icon="bi-telegram",
+        description="Sends notifications via Telegram Bot API. Create a bot with "
+                    "@BotFather, get the token, and add it to a chat or group.",
+        how_it_works="Create a bot via @BotFather on Telegram. Send /newbot, follow "
+                     "the prompts, and copy the bot token. Add the bot to a group or "
+                     "start a chat with it, then get the chat ID (send a message and "
+                     "check https://api.telegram.org/bot<token>/getUpdates). Each "
+                     "watcher can override the chat_id via extra_data.",
+        fields={
+            "bot_token": FieldMeta(
+                label="Bot Token",
+                help="Telegram bot token from @BotFather.",
+                required=True, secret=True,
+                placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11",
+            ),
+            "chat_id": FieldMeta(
+                label="Default Chat ID",
+                help="Target chat/group/channel ID. Use negative IDs for groups.",
+                required=True,
+                placeholder="-1001234567890",
+            ),
+            "parse_mode": FieldMeta(
+                label="Parse Mode",
+                help="Message format: HTML or Markdown.",
+                placeholder="HTML",
+            ),
+            "template": FieldMeta(label="Default Template", placeholder="default.html"),
+        },
+    ),
+    "PCELine": PluginMeta(
+        name="PCELine",
+        display_name="LINE",
+        icon="bi-chat-left-text",
+        description="Sends notifications via LINE Messaging API. Push messages to "
+                    "users, groups, or rooms.",
+        how_it_works="Create a LINE Messaging API channel at developers.line.biz. "
+                     "Get the Channel Access Token from the channel settings. The 'to' "
+                     "field is the user ID, group ID, or room ID to send messages to. "
+                     "You can find user IDs from webhook events or the LINE admin console. "
+                     "Each watcher can override the recipient via extra_data.to.",
+        fields={
+            "channel_access_token": FieldMeta(
+                label="Channel Access Token",
+                help="Long-lived channel access token from LINE Developers console.",
+                required=True, secret=True,
+            ),
+            "to": FieldMeta(
+                label="Default Recipient",
+                help="User ID, group ID, or room ID to send messages to.",
+                required=True,
+                placeholder="U1234567890abcdef...",
+            ),
+            "template": FieldMeta(label="Default Template", placeholder="default.html"),
+        },
+    ),
 }
 
 

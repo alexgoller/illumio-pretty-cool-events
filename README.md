@@ -553,6 +553,33 @@ PCEMattermost:
 
 Create an Incoming Webhook in Mattermost (Integrations > Incoming Webhooks). Each watcher can override the channel via `extra_data.channel`.
 
+### PCETelegram - Telegram
+
+Sends notifications via Telegram Bot API.
+
+```yaml
+PCETelegram:
+  bot_token: "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+  chat_id: "-1001234567890"
+  parse_mode: HTML
+  template: default.html
+```
+
+Create a bot via [@BotFather](https://t.me/botfather). Get the chat ID by sending a message and checking `https://api.telegram.org/bot<token>/getUpdates`. Each watcher can override the chat_id via `extra_data.chat_id`. Supports HTML and Markdown parse modes.
+
+### PCELine - LINE
+
+Sends notifications via LINE Messaging API (push messages).
+
+```yaml
+PCELine:
+  channel_access_token: your-long-lived-token
+  to: U1234567890abcdef
+  template: default.html
+```
+
+Create a Messaging API channel at [LINE Developers](https://developers.line.biz). Get the Channel Access Token from channel settings. The `to` field is a user ID, group ID, or room ID. Each watcher can override the recipient via `extra_data.to`.
+
 ## Templates
 
 Events are formatted through Jinja2 templates before dispatch. Templates have access to all event fields as top-level variables and also as a nested `event` object.
