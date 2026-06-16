@@ -38,6 +38,20 @@ class PCEConfig(BaseModel):
     verify_tls: bool = True
 
 
+def secret_hint(secret: str) -> str:
+    """Non-reversible recognition hint for a stored secret.
+
+    Returns bullets + the last 4 characters (e.g. "••••3f9a") so a user can
+    confirm *which* secret is loaded without exposing the value. Never reveals
+    more than the last 4 characters. Returns "" when unset.
+    """
+    if not secret:
+        return ""
+    if len(secret) <= 4:
+        return "(set)"
+    return "••••" + secret[-4:]
+
+
 class HttpdConfig(BaseModel):
     """Web UI settings."""
 
