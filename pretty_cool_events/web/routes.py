@@ -32,10 +32,9 @@ from pretty_cool_events.config import (
     WatcherAction,
     load_event_types,
     save_config,
-    secret_hint,
 )
-from pretty_cool_events.pce_client import PCEClient
 from pretty_cool_events.label_resolver import LabelResolver
+from pretty_cool_events.pce_client import PCEClient
 from pretty_cool_events.plugin_meta import PLUGIN_METADATA
 
 logger = logging.getLogger(__name__)

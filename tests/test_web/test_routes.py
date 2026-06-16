@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 from flask import Flask
 from flask.testing import FlaskClient
-from unittest.mock import MagicMock, patch
 
 from pretty_cool_events.config import AppConfig
 from pretty_cool_events.stats import StatsTracker
