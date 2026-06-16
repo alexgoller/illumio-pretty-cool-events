@@ -343,7 +343,7 @@ class TestWebRoutes:
         with patch("pretty_cool_events.web.routes.PCEClient", side_effect=fake_ctor):
             # secret omitted -> must fall back to the saved config secret
             client.post("/api/pce/test", json={"pce": "pce.example.com", "pce_api_user": "api_abc"})
-        assert captured["api_secret"]  # non-empty: pulled from saved config
+        assert captured["api_secret"] == "secret123"  # exact saved config secret
 
     def test_api_pce_test_requires_host_user_secret(self, client: FlaskClient, flask_app: Flask) -> None:
         # Force every credential field to resolve empty so the route returns 400.

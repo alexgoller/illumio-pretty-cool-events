@@ -963,7 +963,7 @@ def api_plugin_verify_status() -> Any:
 @bp.route("/api/pce/test", methods=["POST"])
 @_auth_required
 def api_pce_test() -> Any:
-    """Test PCE connectivity using form values, falling back to saved config.
+    """Test PCE connectivity using request body (JSON or form), falling back to saved config.
 
     The secret is never echoed back and never logged.
     """
@@ -991,6 +991,7 @@ def api_pce_test() -> Any:
         api_user=api_user,
         api_secret=secret,
         org_id=org,
+        # verify_tls intentionally taken from saved config only (never disabled per-request)
         verify_tls=config.pce.verify_tls,
         timeout=timeout,
     )
