@@ -283,6 +283,11 @@ def config_page() -> str:
                 else:
                     setattr(config.pce, key, val)
 
+        # PCE API secret: only overwrite when provided (blank keeps current)
+        new_secret = request.form.get("pce_api_secret", "")
+        if new_secret:
+            config.pce.pce_api_secret = new_secret
+
         config.httpd.enabled = "httpd" in request.form
 
         # Throttle

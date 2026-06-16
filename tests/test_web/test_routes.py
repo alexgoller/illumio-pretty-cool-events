@@ -355,3 +355,20 @@ class TestWebRoutes:
             ctor.assert_not_called()
         assert resp.status_code == 400
         assert resp.get_json()["ok"] is False
+
+    def test_config_post_updates_secret_when_provided(self, client: FlaskClient, flask_app: Flask) -> None:
+        client.post("/config", data={
+            "pce": "pce.example.com", "pce_api_user": "api_abc",
+            "pce_org": "1", "pce_poll_interval": "10", "pce_timeout": "30",
+            "pce_api_secret": "brandnewsecret",
+        })
+        assert flask_app.config["APP_CONFIG"].pce.pce_api_secret == "brandnewsecret"
+
+    def test_config_post_keeps_secret_when_blank(self, client: FlaskClient, flask_app: Flask) -> None:
+        flask_app.config["APP_CONFIG"].pce.pce_api_secret = "existing-secret"
+        client.post("/config", data={
+            "pce": "pce.example.com", "pce_api_user": "api_abc",
+            "pce_org": "1", "pce_poll_interval": "10", "pce_timeout": "30",
+            "pce_api_secret": "",
+        })
+        assert flask_app.config["APP_CONFIG"].pce.pce_api_secret == "existing-secret"
