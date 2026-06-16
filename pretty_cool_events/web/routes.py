@@ -32,7 +32,9 @@ from pretty_cool_events.config import (
     WatcherAction,
     load_event_types,
     save_config,
+    secret_hint,
 )
+from pretty_cool_events.pce_client import PCEClient
 from pretty_cool_events.label_resolver import LabelResolver
 from pretty_cool_events.plugin_meta import PLUGIN_METADATA
 
@@ -955,6 +957,48 @@ def api_plugin_verify_confirm() -> Any:
 def api_plugin_verify_status() -> Any:
     """Get verification status for all plugins."""
     return jsonify(_plugin_verify_codes)
+
+
+# --- PCE connection test ---
+
+@bp.route("/api/pce/test", methods=["POST"])
+@_auth_required
+def api_pce_test() -> Any:
+    """Test PCE connectivity using form values, falling back to saved config.
+
+    The secret is never echoed back and never logged.
+    """
+    config = _get_config()
+    data = request.get_json(silent=True) or request.form
+
+    host = (data.get("pce") or config.pce.pce or "").strip()
+    api_user = (data.get("pce_api_user") or config.pce.pce_api_user or "").strip()
+    secret = data.get("pce_api_secret") or config.pce.pce_api_secret or ""
+    try:
+        org = int(data.get("pce_org") or config.pce.pce_org)
+    except (TypeError, ValueError):
+        org = config.pce.pce_org
+    try:
+        timeout = float(data.get("pce_timeout") or config.pce.pce_timeout)
+    except (TypeError, ValueError):
+        timeout = float(config.pce.pce_timeout)
+
+    if not host or not api_user or not secret:
+        return jsonify({"ok": False,
+                        "message": "Host, API user, and secret are required"}), 400
+
+    client = PCEClient(
+        base_url=host,
+        api_user=api_user,
+        api_secret=secret,
+        org_id=org,
+        verify_tls=config.pce.verify_tls,
+        timeout=timeout,
+    )
+    result = client.test_connection()
+    logger.info("PCE connection test to %s as %s: ok=%s",
+                host, api_user, result.get("ok"))
+    return jsonify(result)
 
 
 # --- Watcher dry-run ---

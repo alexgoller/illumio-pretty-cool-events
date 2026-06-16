@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 from flask import Flask
 from flask.testing import FlaskClient
+from unittest.mock import MagicMock, patch
 
 from pretty_cool_events.config import AppConfig
 from pretty_cool_events.stats import StatsTracker
@@ -314,3 +315,42 @@ class TestWebRoutes:
             "policy_decisions": ["blocked"],
         })
         assert response.status_code == 503
+
+    def test_api_pce_test_success(self, client: FlaskClient) -> None:
+        fake = MagicMock()
+        fake.test_connection.return_value = {"ok": True, "message": "Connection successful",
+                                             "status": 200, "latency_ms": 42}
+        with patch("pretty_cool_events.web.routes.PCEClient", return_value=fake):
+            resp = client.post("/api/pce/test", json={
+                "pce": "pce.example.com:8443", "pce_api_user": "api_abc",
+                "pce_org": 1, "pce_api_secret": "typedsecret",
+            })
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"] is True
+        assert data["latency_ms"] == 42
+
+    def test_api_pce_test_falls_back_to_saved_secret(self, client: FlaskClient) -> None:
+        captured = {}
+
+        def fake_ctor(**kwargs):
+            captured.update(kwargs)
+            m = MagicMock()
+            m.test_connection.return_value = {"ok": True, "message": "ok", "status": 200}
+            return m
+
+        with patch("pretty_cool_events.web.routes.PCEClient", side_effect=fake_ctor):
+            # secret omitted -> must fall back to the saved config secret
+            client.post("/api/pce/test", json={"pce": "pce.example.com", "pce_api_user": "api_abc"})
+        assert captured["api_secret"]  # non-empty: pulled from saved config
+
+    def test_api_pce_test_requires_host_user_secret(self, client: FlaskClient, flask_app: Flask) -> None:
+        # Force every credential field to resolve empty so the route returns 400.
+        flask_app.config["APP_CONFIG"].pce.pce = ""
+        flask_app.config["APP_CONFIG"].pce.pce_api_user = ""
+        flask_app.config["APP_CONFIG"].pce.pce_api_secret = ""
+        with patch("pretty_cool_events.web.routes.PCEClient") as ctor:
+            resp = client.post("/api/pce/test", json={"pce": "", "pce_api_user": ""})
+            ctor.assert_not_called()
+        assert resp.status_code == 400
+        assert resp.get_json()["ok"] is False
