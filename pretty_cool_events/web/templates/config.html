@@ -242,7 +242,19 @@
 function testPceConnection() {
   const btn = document.getElementById('pce-test-btn');
   const out = document.getElementById('pce-test-result');
-  out.innerHTML = '<span class="text-muted"><i class="bi bi-hourglass-split"></i> Testing...</span>';
+
+  function render(cls, iconClass, text) {
+    out.replaceChildren();
+    const span = document.createElement('span');
+    span.className = cls;
+    const icon = document.createElement('i');
+    icon.className = iconClass;
+    span.appendChild(icon);
+    span.appendChild(document.createTextNode(' ' + text));
+    out.appendChild(span);
+  }
+
+  render('text-muted', 'bi bi-hourglass-split', 'Testing...');
   btn.disabled = true;
   fetch('{{ url_for("main.api_pce_test") }}', {
     method: 'POST',
@@ -259,13 +271,13 @@ function testPceConnection() {
     .then(data => {
       if (data.ok) {
         const ms = data.latency_ms != null ? ` (${data.latency_ms} ms)` : '';
-        out.innerHTML = `<span class="text-success"><i class="bi bi-check-circle"></i> ${data.message}${ms}</span>`;
+        render('text-success', 'bi bi-check-circle', `${data.message}${ms}`);
       } else {
-        out.innerHTML = `<span class="text-danger"><i class="bi bi-x-circle"></i> ${data.message}</span>`;
+        render('text-danger', 'bi bi-x-circle', data.message);
       }
     })
     .catch(err => {
-      out.innerHTML = `<span class="text-danger">Error: ${err}</span>`;
+      render('text-danger', 'bi bi-x-circle', `Error: ${err}`);
     })
     .finally(() => { btn.disabled = false; });
 }
