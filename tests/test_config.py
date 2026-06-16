@@ -7,7 +7,13 @@ from pathlib import Path
 import pytest
 import yaml
 
-from pretty_cool_events.config import AppConfig, load_config, load_event_types, save_config, secret_hint
+from pretty_cool_events.config import (
+    AppConfig,
+    load_config,
+    load_event_types,
+    save_config,
+    secret_hint,
+)
 
 
 class TestLoadConfig:
