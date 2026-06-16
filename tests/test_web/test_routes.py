@@ -377,3 +377,15 @@ class TestWebRoutes:
         # The shared JS helper (in base.html) must be present on every page.
         resp = client.get("/config")
         assert b"function togglePasswordVisibility" in resp.data
+
+    def test_config_page_shows_secret_field_and_hint(self, client: FlaskClient, flask_app: Flask) -> None:
+        flask_app.config["APP_CONFIG"].pce.pce_api_secret = "supersecretvalue3f9a"
+        resp = client.get("/config")
+        body = resp.data.decode()
+        # Masked secret input present
+        assert 'name="pce_api_secret"' in body
+        # Recognition hint shows only the last 4 chars, never the full secret
+        assert "••••3f9a" in body
+        assert "supersecretvalue" not in body
+        # Test Connection button present
+        assert 'id="pce-test-btn"' in body

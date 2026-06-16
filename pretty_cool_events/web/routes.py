@@ -32,6 +32,7 @@ from pretty_cool_events.config import (
     WatcherAction,
     load_event_types,
     save_config,
+    secret_hint,
 )
 from pretty_cool_events.label_resolver import LabelResolver
 from pretty_cool_events.pce_client import PCEClient
@@ -321,7 +322,11 @@ def config_page() -> str:
         flash("Configuration saved", "success")
         return redirect(url_for("main.config_page"))
 
-    return render_template("config.html", config=config)
+    return render_template(
+        "config.html",
+        config=config,
+        pce_secret_hint=secret_hint(config.pce.pce_api_secret),
+    )
 
 
 @bp.route("/watchers", methods=["GET", "POST"])

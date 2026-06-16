@@ -20,6 +20,20 @@
           <input type="text" class="form-control" id="pce_api_user" name="pce_api_user" value="{{ config.pce.pce_api_user }}">
           <div class="form-text">API key identifier (starts with api_).</div>
         </div>
+        <div class="col-md-6">
+          <label for="pce_api_secret" class="form-label">API Secret</label>
+          <div class="input-group">
+            <input type="password" class="form-control" id="pce_api_secret" name="pce_api_secret"
+                   value="" placeholder="{{ '(set - leave blank to keep)' if config.pce.pce_api_secret else 'Enter PCE API secret' }}">
+            <button class="btn btn-outline-secondary" type="button"
+                    onclick="togglePasswordVisibility('pce_api_secret')">
+              <i class="bi bi-eye"></i>
+            </button>
+          </div>
+          <div class="form-text">
+            {% if pce_secret_hint %}Current: <code>{{ pce_secret_hint }}</code> &mdash; {% endif %}leave blank to keep the current secret.
+          </div>
+        </div>
         <div class="col-md-4">
           <label for="pce_org" class="form-label">Organization ID</label>
           <input type="number" class="form-control" id="pce_org" name="pce_org" value="{{ config.pce.pce_org }}">
@@ -34,11 +48,15 @@
           <input type="number" class="form-control" id="pce_timeout" name="pce_timeout" value="{{ config.pce.pce_timeout }}">
           <div class="form-text">Increase for slow networks or Docker emulation.</div>
         </div>
-        <div class="col-12">
-          <div class="form-check form-switch">
+        <div class="col-12 d-flex align-items-center gap-3">
+          <div class="form-check form-switch mb-0">
             <input class="form-check-input" type="checkbox" id="httpd" name="httpd" {% if config.httpd.enabled %}checked{% endif %}>
             <label class="form-check-label" for="httpd">Enable Web UI</label>
           </div>
+          <button type="button" class="btn btn-outline-info btn-sm" id="pce-test-btn" onclick="testPceConnection()">
+            <i class="bi bi-plug"></i> Test Connection
+          </button>
+          <span id="pce-test-result" class="small"></span>
         </div>
       </div>
     </div>
@@ -221,6 +239,37 @@
 
 {% block scripts %}
 <script>
+function testPceConnection() {
+  const btn = document.getElementById('pce-test-btn');
+  const out = document.getElementById('pce-test-result');
+  out.innerHTML = '<span class="text-muted"><i class="bi bi-hourglass-split"></i> Testing...</span>';
+  btn.disabled = true;
+  fetch('{{ url_for("main.api_pce_test") }}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      pce: document.getElementById('pce').value,
+      pce_api_user: document.getElementById('pce_api_user').value,
+      pce_org: document.getElementById('pce_org').value,
+      pce_timeout: document.getElementById('pce_timeout').value,
+      pce_api_secret: document.getElementById('pce_api_secret').value,
+    }),
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        const ms = data.latency_ms != null ? ` (${data.latency_ms} ms)` : '';
+        out.innerHTML = `<span class="text-success"><i class="bi bi-check-circle"></i> ${data.message}${ms}</span>`;
+      } else {
+        out.innerHTML = `<span class="text-danger"><i class="bi bi-x-circle"></i> ${data.message}</span>`;
+      }
+    })
+    .catch(err => {
+      out.innerHTML = `<span class="text-danger">Error: ${err}</span>`;
+    })
+    .finally(() => { btn.disabled = false; });
+}
+
 function reloadService() {
   const result = document.getElementById('reload-result');
   result.innerHTML = '<span class="text-muted"><i class="bi bi-hourglass-split"></i> Reloading...</span>';
