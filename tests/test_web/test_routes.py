@@ -372,3 +372,8 @@ class TestWebRoutes:
             "pce_api_secret": "",
         })
         assert flask_app.config["APP_CONFIG"].pce.pce_api_secret == "existing-secret"
+
+    def test_toggle_helper_available_on_config_page(self, client: FlaskClient) -> None:
+        # The shared JS helper (in base.html) must be present on every page.
+        resp = client.get("/config")
+        assert b"function togglePasswordVisibility" in resp.data

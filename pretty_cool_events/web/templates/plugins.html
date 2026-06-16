@@ -156,11 +156,6 @@ function saveAndReload() {
     });
 }
 
-function togglePasswordVisibility(fieldId) {
-  const input = document.getElementById(fieldId);
-  input.type = input.type === 'password' ? 'text' : 'password';
-}
-
 function verifyPlugin(pluginName) {
   const body = document.getElementById('verifyModalBody');
   body.innerHTML = `
