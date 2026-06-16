@@ -83,7 +83,7 @@ class PCEClient:
            unauthenticated, so it cannot validate the API key).
         2. An authenticated labels call proves the api_user/secret/org work.
 
-        Returns: {ok, message, status?, latency_ms?}. Never includes the secret.
+        Returns: {ok, message, status?, latency_ms?}. latency_ms is present only on success. Never includes the secret.
         """
         start = time.monotonic()
         try:
@@ -97,7 +97,7 @@ class PCEClient:
                 web=True, params={"max_results": 1},
             )
         except httpx.HTTPError as e:
-            return {"ok": False, "message": f"PCE unreachable: {e}"}
+            return {"ok": False, "message": f"Network error during credential check: {e}"}
 
         latency_ms = int((time.monotonic() - start) * 1000)
         if r.status_code == 200:
