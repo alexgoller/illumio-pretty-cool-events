@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 from flask import Flask
 from flask.testing import FlaskClient
@@ -314,3 +316,76 @@ class TestWebRoutes:
             "policy_decisions": ["blocked"],
         })
         assert response.status_code == 503
+
+    def test_api_pce_test_success(self, client: FlaskClient) -> None:
+        fake = MagicMock()
+        fake.test_connection.return_value = {"ok": True, "message": "Connection successful",
+                                             "status": 200, "latency_ms": 42}
+        with patch("pretty_cool_events.web.routes.PCEClient", return_value=fake):
+            resp = client.post("/api/pce/test", json={
+                "pce": "pce.example.com:8443", "pce_api_user": "api_abc",
+                "pce_org": 1, "pce_api_secret": "typedsecret",
+            })
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"] is True
+        assert data["latency_ms"] == 42
+
+    def test_api_pce_test_falls_back_to_saved_secret(self, client: FlaskClient) -> None:
+        captured = {}
+
+        def fake_ctor(**kwargs):
+            captured.update(kwargs)
+            m = MagicMock()
+            m.test_connection.return_value = {"ok": True, "message": "ok", "status": 200}
+            return m
+
+        with patch("pretty_cool_events.web.routes.PCEClient", side_effect=fake_ctor):
+            # secret omitted -> must fall back to the saved config secret
+            client.post("/api/pce/test", json={"pce": "pce.example.com", "pce_api_user": "api_abc"})
+        assert captured["api_secret"] == "secret123"  # exact saved config secret
+
+    def test_api_pce_test_requires_host_user_secret(self, client: FlaskClient, flask_app: Flask) -> None:
+        # Force every credential field to resolve empty so the route returns 400.
+        flask_app.config["APP_CONFIG"].pce.pce = ""
+        flask_app.config["APP_CONFIG"].pce.pce_api_user = ""
+        flask_app.config["APP_CONFIG"].pce.pce_api_secret = ""
+        with patch("pretty_cool_events.web.routes.PCEClient") as ctor:
+            resp = client.post("/api/pce/test", json={"pce": "", "pce_api_user": ""})
+            ctor.assert_not_called()
+        assert resp.status_code == 400
+        assert resp.get_json()["ok"] is False
+
+    def test_config_post_updates_secret_when_provided(self, client: FlaskClient, flask_app: Flask) -> None:
+        client.post("/config", data={
+            "pce": "pce.example.com", "pce_api_user": "api_abc",
+            "pce_org": "1", "pce_poll_interval": "10", "pce_timeout": "30",
+            "pce_api_secret": "brandnewsecret",
+        })
+        assert flask_app.config["APP_CONFIG"].pce.pce_api_secret == "brandnewsecret"
+
+    def test_config_post_keeps_secret_when_blank(self, client: FlaskClient, flask_app: Flask) -> None:
+        flask_app.config["APP_CONFIG"].pce.pce_api_secret = "existing-secret"
+        client.post("/config", data={
+            "pce": "pce.example.com", "pce_api_user": "api_abc",
+            "pce_org": "1", "pce_poll_interval": "10", "pce_timeout": "30",
+            "pce_api_secret": "",
+        })
+        assert flask_app.config["APP_CONFIG"].pce.pce_api_secret == "existing-secret"
+
+    def test_toggle_helper_available_on_config_page(self, client: FlaskClient) -> None:
+        # The shared JS helper (in base.html) must be present on every page.
+        resp = client.get("/config")
+        assert b"function togglePasswordVisibility" in resp.data
+
+    def test_config_page_shows_secret_field_and_hint(self, client: FlaskClient, flask_app: Flask) -> None:
+        flask_app.config["APP_CONFIG"].pce.pce_api_secret = "supersecretvalue3f9a"
+        resp = client.get("/config")
+        body = resp.data.decode()
+        # Masked secret input present
+        assert 'name="pce_api_secret"' in body
+        # Recognition hint shows only the last 4 chars, never the full secret
+        assert "••••3f9a" in body
+        assert "supersecretvalue" not in body
+        # Test Connection button present
+        assert 'id="pce-test-btn"' in body

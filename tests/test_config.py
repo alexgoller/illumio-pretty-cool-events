@@ -7,7 +7,13 @@ from pathlib import Path
 import pytest
 import yaml
 
-from pretty_cool_events.config import AppConfig, load_config, load_event_types, save_config
+from pretty_cool_events.config import (
+    AppConfig,
+    load_config,
+    load_event_types,
+    save_config,
+    secret_hint,
+)
 
 
 class TestLoadConfig:
@@ -92,3 +98,21 @@ class TestLoadConfig:
         config_file.write_text(yaml.dump(bad_config, default_flow_style=False))
         with pytest.raises(Exception):
             load_config(config_file)
+
+
+class TestSecretHint:
+    def test_empty_returns_blank(self) -> None:
+        assert secret_hint("") == ""
+
+    def test_short_secret_does_not_reveal_chars(self) -> None:
+        # 4 chars or fewer: never expose the value
+        assert secret_hint("ab") == "(set)"
+        assert secret_hint("abcd") == "(set)"
+
+    def test_long_secret_reveals_only_last_four(self) -> None:
+        result = secret_hint("supersecretvalue3f9a")
+        assert result == "••••3f9a"
+        # never reveals more than the last 4 characters
+        assert "supersecret" not in result
+        assert result.endswith("3f9a")
+        assert result.count("•") == 4

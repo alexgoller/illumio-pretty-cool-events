@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from datetime import datetime, timezone
 from typing import Any
 
@@ -73,6 +74,43 @@ class PCEClient:
         except httpx.HTTPError as e:
             logger.error("PCE health check failed: %s", e)
             return False
+
+    def test_connection(self) -> dict[str, Any]:
+        """Validate reachability AND credentials.
+
+        Two steps so diagnostics are actionable:
+        1. /api/v2/health proves the PCE is reachable (this endpoint is
+           unauthenticated, so it cannot validate the API key).
+        2. An authenticated labels call proves the api_user/secret/org work.
+
+        Returns: {ok, message, status?, latency_ms?}. latency_ms is present only on success. Never includes the secret.
+        """
+        start = time.monotonic()
+        try:
+            self._request("get", "/api/v2/health", web=True)
+        except httpx.HTTPError as e:
+            return {"ok": False, "message": f"PCE unreachable: {e}"}
+
+        try:
+            r = self._request(
+                "get", f"/api/v2/orgs/{self._org_id}/labels",
+                web=True, params={"max_results": 1},
+            )
+        except httpx.HTTPError as e:
+            return {"ok": False, "message": f"Network error during credential check: {e}"}
+
+        latency_ms = int((time.monotonic() - start) * 1000)
+        if r.status_code == 200:
+            return {"ok": True, "message": "Connection successful",
+                    "status": 200, "latency_ms": latency_ms}
+        if r.status_code in (401, 403):
+            return {"ok": False, "status": r.status_code,
+                    "message": "Authentication failed (check API user/secret)"}
+        if r.status_code == 404:
+            return {"ok": False, "status": 404,
+                    "message": f"Organization {self._org_id} not found"}
+        return {"ok": False, "status": r.status_code,
+                "message": f"Unexpected response (HTTP {r.status_code})"}
 
     def get_events(
         self,

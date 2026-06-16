@@ -76,3 +76,36 @@ class TestPCEClient:
 
             # Two calls = two Client() instantiations
             assert mock_cls.call_count == 2
+
+    def test_test_connection_success(self, pce_client: PCEClient) -> None:
+        ok_resp = MagicMock()
+        ok_resp.status_code = 200
+        with patch.object(pce_client, "_request", return_value=ok_resp):
+            result = pce_client.test_connection()
+        assert result["ok"] is True
+        assert result["status"] == 200
+        assert "latency_ms" in result
+
+    def test_test_connection_unreachable(self, pce_client: PCEClient) -> None:
+        with patch.object(pce_client, "_request", side_effect=httpx.ConnectError("boom")):
+            result = pce_client.test_connection()
+        assert result["ok"] is False
+        assert "unreachable" in result["message"].lower()
+
+    def test_test_connection_auth_failed(self, pce_client: PCEClient) -> None:
+        health = MagicMock(status_code=200)
+        denied = MagicMock(status_code=401)
+        with patch.object(pce_client, "_request", side_effect=[health, denied]):
+            result = pce_client.test_connection()
+        assert result["ok"] is False
+        assert result["status"] == 401
+        assert "authentication" in result["message"].lower()
+
+    def test_test_connection_wrong_org(self, pce_client: PCEClient) -> None:
+        health = MagicMock(status_code=200)
+        missing = MagicMock(status_code=404)
+        with patch.object(pce_client, "_request", side_effect=[health, missing]):
+            result = pce_client.test_connection()
+        assert result["ok"] is False
+        assert result["status"] == 404
+        assert "not found" in result["message"].lower()
