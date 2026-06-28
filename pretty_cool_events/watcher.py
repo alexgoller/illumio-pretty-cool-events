@@ -49,24 +49,43 @@ def _value_matches(pattern: str, value: str | None) -> bool:
 def _extract_nested(event: dict[str, Any], field_path: str) -> str | None:
     """Extract a value from a nested event dict using dot notation.
 
+    Supports dicts and lists. For a list, a numeric segment indexes into it
+    (e.g. "notifications.0.info.api_endpoint"); a non-numeric segment is
+    searched across every element, returning the first match (e.g.
+    "notifications.info.api_endpoint" finds the field in any notification).
+
     Examples:
         "event_type" -> event["event_type"]
         "created_by.user.username" -> event["created_by"]["user"]["username"]
         "action.src_ip" -> event["action"]["src_ip"]
-        "severity" -> event["severity"]
+        "notifications.info.api_endpoint" -> first notification's api_endpoint
     """
-    parts = field_path.split(".")
-    current: Any = event
-    for part in parts:
-        if isinstance(current, dict) and part in current:
-            current = current[part]
-        else:
+    def walk(current: Any, parts: list[str]) -> Any:
+        if not parts:
+            return current
+        part, rest = parts[0], parts[1:]
+        if isinstance(current, dict):
+            if part in current:
+                return walk(current[part], rest)
             return None
-    if isinstance(current, str):
-        return current
-    if current is None:
+        if isinstance(current, list):
+            if part.isdigit():
+                idx = int(part)
+                if 0 <= idx < len(current):
+                    return walk(current[idx], rest)
+                return None
+            # Non-numeric segment: search every element for the remaining path.
+            for el in current:
+                found = walk(el, [part] + rest)
+                if found is not None:
+                    return found
+            return None
         return None
-    return str(current)
+
+    result = walk(event, field_path.split("."))
+    if result is None or isinstance(result, str):
+        return result
+    return str(result)
 
 
 class WatcherRegistry:

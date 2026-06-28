@@ -194,3 +194,67 @@ class TestWatcherRegistry:
         assert len(registry.match({
             "event_type": "a", "status": None, "severity": "info",
         })) == 0
+
+
+# ---------------------------------------------------------------------------
+# List-aware nested field matching (mute heartbeat auth-failures while keeping
+# real API-key auth-failures — both share event_type request.authentication_failed)
+# ---------------------------------------------------------------------------
+
+from pretty_cool_events.watcher import _extract_nested
+
+
+def _auth_fail(api_endpoint: str) -> dict[str, Any]:
+    return {
+        "event_type": "request.authentication_failed",
+        "status": "failure",
+        "severity": "err",
+        "notifications": [
+            {"notification_type": "request.authentication_failed",
+             "info": {"api_endpoint": api_endpoint, "api_method": "GET"}}
+        ],
+    }
+
+
+class TestExtractNestedLists:
+    def test_numeric_index(self) -> None:
+        ev = _auth_fail("/api/v2/orgs/1/workloads")
+        assert _extract_nested(ev, "notifications.0.info.api_endpoint") == "/api/v2/orgs/1/workloads"
+
+    def test_search_across_list(self) -> None:
+        ev = _auth_fail("/api/v26/orgs/1/agents/123/heartbeat")
+        # non-numeric segment searches every list element
+        assert _extract_nested(ev, "notifications.info.api_endpoint") == "/api/v26/orgs/1/agents/123/heartbeat"
+
+    def test_missing_returns_none(self) -> None:
+        assert _extract_nested({"event_type": "x"}, "notifications.info.api_endpoint") is None
+
+    def test_index_out_of_range(self) -> None:
+        ev = _auth_fail("/x")
+        assert _extract_nested(ev, "notifications.5.info.api_endpoint") is None
+
+
+class TestHeartbeatMute:
+    """The actual mute: route auth-failures to PCEStdout EXCEPT VEN heartbeats."""
+
+    def _registry(self) -> WatcherRegistry:
+        return WatcherRegistry(_make_watchers({
+            ".*": [{"plugin": "PCEStdout", "status": "*", "extra_data": {
+                "match_fields": {"notifications.info.api_endpoint": "!.*heartbeat.*"}}}],
+        }))
+
+    def test_heartbeat_failure_muted(self) -> None:
+        reg = self._registry()
+        ev = _auth_fail("/api/v26/orgs/1/agents/123/heartbeat")
+        assert len(reg.match(ev)) == 0  # muted
+
+    def test_api_key_failure_kept(self) -> None:
+        reg = self._registry()
+        ev = _auth_fail("/api/v2/orgs/1/workloads")
+        assert len(reg.match(ev)) == 1  # real failure still routed
+
+    def test_other_events_unaffected(self) -> None:
+        reg = self._registry()
+        # an event with no notifications/api_endpoint still routes (None -> not heartbeat)
+        ev = {"event_type": "workload.update", "status": "success", "severity": "info"}
+        assert len(reg.match(ev)) == 1

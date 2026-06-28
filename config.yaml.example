@@ -52,6 +52,17 @@ config:
 
 
 watchers:
+        # match_fields filters on nested event fields (dot notation; list
+        # segments are searched, e.g. notifications.info.api_endpoint). A "!"
+        # prefix negates. Example below routes auth failures to stdout EXCEPT
+        # noisy VEN agent heartbeat failures:
+        request.authentication_failed:
+                - status: '*'
+                  plugin: PCEStdout
+                  extra_data:
+                    template: default.html
+                    match_fields:
+                      notifications.info.api_endpoint: '!.*heartbeat.*'
         user.:
                 - status: success
                   plugin: PCESlack
